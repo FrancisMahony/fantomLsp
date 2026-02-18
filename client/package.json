@@ -1,0 +1,82 @@
+{
+  "name": "fantom-lsp",
+  "displayName": "Fantom Language Support",
+  "description": "Language server protocol support for the Fantom programming language",
+  "version": "0.1.0",
+  "publisher": "fantom-lsp",
+  "license": "AFL-3.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:fantom"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "fantom",
+        "aliases": [
+          "Fantom",
+          "fantom",
+          "fan"
+        ],
+        "extensions": [
+          ".fan",
+          ".fwt",
+          ".pod"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fantom",
+        "scopeName": "source.fantom",
+        "path": "./syntaxes/fantom.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Fantom",
+      "properties": {
+        "fantom.home": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Fantom installation directory (FAN_HOME). If empty, the extension will check the FAN_HOME environment variable and PATH."
+        },
+        "fantom.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the Fantom language server."
+        },
+        "fantom.javaOpts": {
+          "type": "string",
+          "default": "-Xmx1024m",
+          "description": "JVM options passed to the Fantom language server (e.g. -Xmx2048m for more memory)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.3.0"
+  }
+}
