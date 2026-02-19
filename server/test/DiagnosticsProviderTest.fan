@@ -1,0 +1,74 @@
+class DiagnosticsProviderTest : Test
+{
+  private DiagnosticsProvider provider := DiagnosticsProvider()
+  private RecoveringParser parser := RecoveringParser()
+
+  private ParseResult parse(Str src) { parser.parse("file:///test.fan", src) }
+
+  Void testNoErrorsReturnsEmptyDiagnostics()
+  {
+    src := "class Foo { Void bar() { } }"
+    result := parse(src)
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
+  }
+
+  Void testEmptyParseResultReturnsEmptyDiagnostics()
+  {
+    result := ParseResult.empty()
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
+  }
+
+  Void testSyntheticErrorConvertedToDiagnostic()
+  {
+    result := ParseResult("file:///test.fan")
+    result.errors.add(ParseError(
+      LspRange(Position(0, 0), Position(0, 10)),
+      "Test error message"
+    ))
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 1)
+    verifyEq(diags[0].severity, Diagnostic.error)
+    verifyEq(diags[0].message, "Test error message")
+    verifyNotNull(diags[0].range)
+    verifyEq(diags[0].source, "fantomLsp")
+  }
+
+  Void testMultipleErrorsConverted()
+  {
+    result := ParseResult("file:///test.fan")
+    result.errors.add(ParseError(
+      LspRange(Position(0, 0), Position(0, 10)),
+      "Error 1"
+    ))
+    result.errors.add(ParseError(
+      LspRange(Position(1, 0), Position(1, 10)),
+      "Error 2"
+    ))
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 2)
+    verifyEq(diags[0].message, "Error 1")
+    verifyEq(diags[1].message, "Error 2")
+  }
+
+  Void testDiagnosticHasCorrectProperties()
+  {
+    result := ParseResult("file:///test.fan")
+    result.errors.add(ParseError(
+      LspRange(Position(5, 10), Position(5, 20)),
+      "Syntax error"
+    ))
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 1)
+    verifyNotNull(diags[0].range)
+    verifyNotNull(diags[0].range.start)
+    verifyNotNull(diags[0].range.end)
+    verifyEq(diags[0].range.start.line, 5)
+    verifyEq(diags[0].range.start.character, 10)
+    verifyEq(diags[0].range.end.line, 5)
+    verifyEq(diags[0].range.end.character, 20)
+    verifyEq(diags[0].severity, Diagnostic.error)
+    verifyEq(diags[0].source, "fantomLsp")
+  }
+}

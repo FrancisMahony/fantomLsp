@@ -12,7 +12,7 @@ class SymbolTable
         entries.add(SymbolEntry(node.name, uri, node))
         node.children.each |child|
         {
-          if (child.isSlot || child.kind == AstNodeKind.enumValDef)
+          if (child.isSlotOrEnumVal)
             entries.add(SymbolEntry(child.qname, uri, child))
         }
       }
@@ -89,7 +89,7 @@ class SymbolTable
 
     return entries.findAll |e| { e.node.isType }.map |e -> DocumentSymbol|
     {
-      children := e.node.children.map |c -> DocumentSymbol|
+      children := e.node.children.findAll |c| { c.isSlotOrEnumVal }.map |c -> DocumentSymbol|
       {
         DocumentSymbol(c.name, c.symbolKind, c.range, c.selectionRange,
           c.typeName ?: c.returnType)

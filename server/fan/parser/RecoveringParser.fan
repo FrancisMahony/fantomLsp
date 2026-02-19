@@ -238,6 +238,7 @@ class RecoveringParser
         col := lines[curLine].index(name) ?: 0
         r := LspRange(Position(curLine, 0), Position(curLine, lines[curLine].size))
         sr := LspRange(Position(curLine, col), Position(curLine, col + name.size))
+        curLine++
         return AstNode(AstNodeKind.enumValDef, name, r, sr) { it.modifiers = mods }
       }
     }
@@ -292,19 +293,33 @@ class RecoveringParser
     endLine := startLine
     if (rest.contains("{"))
     {
-      depth := 1
-      curLine++
-      while (curLine < lines.size && depth > 0)
+      depth := 0
+      lines[curLine].each |ch|
       {
-        cl := lines[curLine]
-        cl.each |ch|
-        {
-          if (ch == '{') depth++
-          else if (ch == '}') depth--
-        }
-        curLine++
+        if (ch == '{') depth++
+        else if (ch == '}') depth--
       }
-      endLine = (curLine - 1).max(startLine)
+
+      if (depth > 0)
+      {
+        curLine++
+        while (curLine < lines.size && depth > 0)
+        {
+          cl := lines[curLine]
+          cl.each |ch|
+          {
+            if (ch == '{') depth++
+            else if (ch == '}') depth--
+          }
+          curLine++
+        }
+        endLine = (curLine - 1).max(startLine)
+      }
+      else
+      {
+        curLine++
+        endLine = startLine
+      }
     }
     else
     {

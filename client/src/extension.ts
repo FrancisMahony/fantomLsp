@@ -135,8 +135,20 @@ export async function activate(context: ExtensionContext): Promise<void> {
     documentSelector: [{ scheme: "file", language: "fantom" }],
     synchronize: {
       fileEvents: workspace.createFileSystemWatcher("**/*.fan"),
+      configurationSection: "fantom"
     },
     outputChannelName: "Fantom Language Server",
+    middleware: {
+      provideDocumentFormattingEdits: async (document, options, token, next) => {
+        const config = workspace.getConfiguration("fantom.formatting");
+        const bracketStyle = config.get<string>("bracketStyle") || "preserve";
+        const customOptions = {
+          ...options,
+          bracketStyle: bracketStyle
+        };
+        return next(document, customOptions, token);
+      }
+    }
   };
 
   client = new LanguageClient(
@@ -156,6 +168,20 @@ export async function activate(context: ExtensionContext): Promise<void> {
   );
 
   await client.start();
+
+  workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration("fantom.formatting.bracketStyle")) {
+      client?.sendNotification("workspace/didChangeConfiguration", {
+        settings: {
+          fantom: {
+            formatting: {
+              bracketStyle: workspace.getConfiguration("fantom.formatting").get<string>("bracketStyle")
+            }
+          }
+        }
+      });
+    }
+  });
 }
 
 export async function deactivate(): Promise<void> {

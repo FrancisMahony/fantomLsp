@@ -62,6 +62,21 @@
           "type": "string",
           "default": "-Xmx1024m",
           "description": "JVM options passed to the Fantom language server (e.g. -Xmx2048m for more memory)."
+        },
+        "fantom.formatting.bracketStyle": {
+          "type": "string",
+          "enum": [
+            "preserve",
+            "k&r",
+            "allman"
+          ],
+          "default": "preserve",
+          "enumDescriptions": [
+            "Keep existing bracket style",
+            "K&R style - braces on same line (e.g., class Foo {)",
+            "Allman style - braces on new line (e.g., class Foo\\n{)"
+          ],
+          "description": "Bracket style to use when formatting code."
         }
       }
     }

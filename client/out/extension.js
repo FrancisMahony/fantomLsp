@@ -143,8 +143,20 @@ async function activate(context) {
         documentSelector: [{ scheme: "file", language: "fantom" }],
         synchronize: {
             fileEvents: vscode_1.workspace.createFileSystemWatcher("**/*.fan"),
+            configurationSection: "fantom"
         },
         outputChannelName: "Fantom Language Server",
+        middleware: {
+            provideDocumentFormattingEdits: async (document, options, token, next) => {
+                const config = vscode_1.workspace.getConfiguration("fantom.formatting");
+                const bracketStyle = config.get("bracketStyle") || "preserve";
+                const customOptions = {
+                    ...options,
+                    bracketStyle: bracketStyle
+                };
+                return next(document, customOptions, token);
+            }
+        }
     };
     client = new node_1.LanguageClient("fantomLanguageServer", "Fantom Language Server", serverOptions, clientOptions);
     context.subscriptions.push(vscode_1.commands.registerCommand("fantom.restartServer", async () => {
@@ -154,6 +166,19 @@ async function activate(context) {
         }
     }));
     await client.start();
+    vscode_1.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration("fantom.formatting.bracketStyle")) {
+            client?.sendNotification("workspace/didChangeConfiguration", {
+                settings: {
+                    fantom: {
+                        formatting: {
+                            bracketStyle: vscode_1.workspace.getConfiguration("fantom.formatting").get("bracketStyle")
+                        }
+                    }
+                }
+            });
+        }
+    });
 }
 async function deactivate() {
     if (client) {

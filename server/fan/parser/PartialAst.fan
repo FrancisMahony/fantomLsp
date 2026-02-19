@@ -72,6 +72,11 @@ class AstNode
     kind === AstNodeKind.fieldDef || kind === AstNodeKind.methodDef || kind === AstNodeKind.ctorDef
   }
 
+  Bool isSlotOrEnumVal()
+  {
+    isSlot || kind === AstNodeKind.enumValDef
+  }
+
   Str qname()
   {
     if (parent != null && parent.isType)

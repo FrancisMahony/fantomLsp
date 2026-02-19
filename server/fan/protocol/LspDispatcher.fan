@@ -76,20 +76,18 @@ class LspDispatcher
         return server.completion(params)
       case "textDocument/signatureHelp":
         return server.signatureHelp(params)
-      // case "textDocument/definition":
-      //   return server.definition(params)
-      // case "textDocument/references":
-      //   return server.references(params)
-      // case "textDocument/completion":
-      //   return server.completion(params)
-      // case "textDocument/signatureHelp":
-      //   return server.signatureHelp(params)
-      // case "textDocument/documentSymbol":
-      //   return server.documentSymbol(params)
-      // case "textDocument/formatting":
-      //   return server.formatting(params)
-      // case "textDocument/rename":
-      //   return server.rename(params)
+      case "textDocument/definition":
+        return server.definition(params)
+      case "textDocument/references":
+        return server.references(params)
+      case "textDocument/documentSymbol":
+        return server.documentSymbol(params)
+      case "textDocument/formatting":
+        return server.formatting(params)
+      case "textDocument/rename":
+        return server.rename(params)
+      case "textDocument/prepareRename":
+        return server.prepareRename(params)
       // case "textDocument/codeAction":
       //   return server.codeAction(params)
       // case "textDocument/semanticTokens/full":
@@ -100,8 +98,8 @@ class LspDispatcher
       //   return server.callHierarchyIncoming(params)
       // case "callHierarchy/outgoingCalls":
       //   return server.callHierarchyOutgoing(params)
-      // case "workspace/symbol":
-      //   return server.workspaceSymbol(params)
+      case "workspace/symbol":
+        return server.workspaceSymbol(params)
       default:
         Env.cur.err.printLine("[fantomLsp] Unhandled request: $method")
         return null
@@ -114,6 +112,8 @@ class LspDispatcher
     {
       case "initialized":
         server.initialized(params)
+      case "workspace/didChangeConfiguration":
+        server.didChangeConfiguration(params)
       case "textDocument/didOpen":
         diags := server.didOpen(params)
         if (diags != null) notifications.add(diags)
