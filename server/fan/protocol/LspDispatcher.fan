@@ -72,34 +72,39 @@ class LspDispatcher
         return null
       case "textDocument/hover":
         return server.hover(params)
-      case "textDocument/definition":
-        return server.definition(params)
-      case "textDocument/references":
-        return server.references(params)
       case "textDocument/completion":
         return server.completion(params)
       case "textDocument/signatureHelp":
         return server.signatureHelp(params)
-      case "textDocument/documentSymbol":
-        return server.documentSymbol(params)
-      case "textDocument/formatting":
-        return server.formatting(params)
-      case "textDocument/rename":
-        return server.rename(params)
-      case "textDocument/codeAction":
-        return server.codeAction(params)
-      case "textDocument/semanticTokens/full":
-        return server.semanticTokensFull(params)
-      case "textDocument/prepareCallHierarchy":
-        return server.prepareCallHierarchy(params)
-      case "callHierarchy/incomingCalls":
-        return server.callHierarchyIncoming(params)
-      case "callHierarchy/outgoingCalls":
-        return server.callHierarchyOutgoing(params)
-      case "workspace/symbol":
-        return server.workspaceSymbol(params)
+      // case "textDocument/definition":
+      //   return server.definition(params)
+      // case "textDocument/references":
+      //   return server.references(params)
+      // case "textDocument/completion":
+      //   return server.completion(params)
+      // case "textDocument/signatureHelp":
+      //   return server.signatureHelp(params)
+      // case "textDocument/documentSymbol":
+      //   return server.documentSymbol(params)
+      // case "textDocument/formatting":
+      //   return server.formatting(params)
+      // case "textDocument/rename":
+      //   return server.rename(params)
+      // case "textDocument/codeAction":
+      //   return server.codeAction(params)
+      // case "textDocument/semanticTokens/full":
+      //   return server.semanticTokensFull(params)
+      // case "textDocument/prepareCallHierarchy":
+      //   return server.prepareCallHierarchy(params)
+      // case "callHierarchy/incomingCalls":
+      //   return server.callHierarchyIncoming(params)
+      // case "callHierarchy/outgoingCalls":
+      //   return server.callHierarchyOutgoing(params)
+      // case "workspace/symbol":
+      //   return server.workspaceSymbol(params)
       default:
-        throw Err("Method not found: $method")
+        Env.cur.err.printLine("[fantomLsp] Unhandled request: $method")
+        return null
     }
   }
 

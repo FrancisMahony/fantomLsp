@@ -7,7 +7,10 @@ class Main
     log := Log.get("fantomLsp")
     log.level = LogLevel.debug
 
+    pod := Pod.find("fantomLsp")
     Env.cur.err.printLine("[fantomLsp] Starting Fantom Language Server...")
+    Env.cur.err.printLine("[fantomLsp] Version: ${pod.version}")
+    Env.cur.err.printLine("[fantomLsp] Homedir: ${Env.cur.homeDir}")
 
     jsonRpc := JsonRpc(Env.cur.in, Env.cur.out)
     server := FantomLanguageServer()

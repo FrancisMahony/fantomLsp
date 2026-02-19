@@ -40,7 +40,7 @@ function findJavaExecutable(fanHome: string): string {
       return javaExe;
     }
   }
-
+  console.log()
   const fanJava = path.join(
     fanHome,
     "bin",
@@ -117,6 +117,19 @@ export async function activate(context: ExtensionContext): Promise<void> {
       transport: TransportKind.stdio,
     };
   }
+
+  const launchChannel = window.createOutputChannel("Fantom LSP Launch");
+  launchChannel.appendLine(`[launch] fanHome:  ${fanHome}`);
+  launchChannel.appendLine(`[launch] sysJar:   ${sysJar ?? "(not found, using fan.bat)"}`);
+  launchChannel.appendLine(`[launch] javaExe:  ${javaExe}`);
+  if (sysJar) {
+    const opts = serverOptions as { command: string; args: string[] };
+    launchChannel.appendLine(`[launch] command:  ${opts.command} ${opts.args.join(" ")}`);
+  } else {
+    const opts = serverOptions as { command: string; args: string[] };
+    launchChannel.appendLine(`[launch] command:  ${opts.command} ${opts.args.join(" ")}`);
+  }
+  launchChannel.show(true);
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "fantom" }],

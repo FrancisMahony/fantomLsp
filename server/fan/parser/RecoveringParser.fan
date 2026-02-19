@@ -394,6 +394,10 @@ class RecoveringParser
       }
       endLine = (curLine - 1).max(startLine)
     }
+    else
+    {
+      curLine++
+    }
 
     fullRange := LspRange(Position(startLine, 0), Position(endLine, lines.getSafe(endLine)?.size ?: 0))
     doc := collectDoc(startLine)

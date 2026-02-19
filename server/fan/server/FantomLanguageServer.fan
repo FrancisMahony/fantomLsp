@@ -2,21 +2,21 @@ class FantomLanguageServer
 {
   TextDocumentManager docManager := TextDocumentManager()
   WorkspaceManager workspaceManager := WorkspaceManager()
-  DiagnosticsProvider diagnosticsProvider := DiagnosticsProvider()
+  // DiagnosticsProvider diagnosticsProvider := DiagnosticsProvider()
   HoverProvider hoverProvider := HoverProvider()
-  DefinitionProvider definitionProvider := DefinitionProvider()
-  ReferencesProvider referencesProvider := ReferencesProvider()
+  // DefinitionProvider definitionProvider := DefinitionProvider()
+  // ReferencesProvider referencesProvider := ReferencesProvider()
   CompletionProvider completionProvider := CompletionProvider()
   SignatureHelpProvider signatureHelpProvider := SignatureHelpProvider()
-  FormattingProvider formattingProvider := FormattingProvider()
-  RenameProvider renameProvider := RenameProvider()
-  CodeActionProvider codeActionProvider := CodeActionProvider()
-  SemanticTokensProvider semanticTokensProvider := SemanticTokensProvider()
-  CallHierarchyProvider callHierarchyProvider := CallHierarchyProvider()
-  WorkspaceSymbolProvider workspaceSymbolProvider := WorkspaceSymbolProvider()
-  SymbolTable symbolTable := SymbolTable()
-  TypeResolver typeResolver := TypeResolver()
-  ReferenceIndex referenceIndex := ReferenceIndex()
+  // FormattingProvider formattingProvider := FormattingProvider()
+  // RenameProvider renameProvider := RenameProvider()
+  // CodeActionProvider codeActionProvider := CodeActionProvider()
+  // SemanticTokensProvider semanticTokensProvider := SemanticTokensProvider()
+  // CallHierarchyProvider callHierarchyProvider := CallHierarchyProvider()
+  // WorkspaceSymbolProvider workspaceSymbolProvider := WorkspaceSymbolProvider()
+  // SymbolTable symbolTable := SymbolTable()
+  // TypeResolver typeResolver := TypeResolver()
+  // ReferenceIndex referenceIndex := ReferenceIndex()
 
   Bool isShutdown := false
   Str[]? workspaceFolders
@@ -48,25 +48,25 @@ class FantomLanguageServer
     }
 
     caps := Serialization.serverCapabilities(
-      true,  // hover
-      true,  // definition
-      true,  // references
-      true,  // completion
-      true,  // signatureHelp
-      true,  // documentSymbol
-      true,  // formatting
-      true,  // rename
-      true,  // codeAction
-      true,  // workspaceSymbol
-      true,  // semanticTokens
-      true   // callHierarchy
+      true,   // hover
+      false,  // definition
+      false,  // references
+      true,   // completion
+      true,   // signatureHelp
+      false,  // documentSymbol
+      false,  // formatting
+      false,  // rename
+      false,  // codeAction
+      false,  // workspaceSymbol
+      false,  // semanticTokens
+      false   // callHierarchy
     )
 
     return [
       "capabilities": caps,
       "serverInfo": [
         "name": "Fantom Language Server",
-        "version": "0.1.0",
+        "version": "0.5.0",
       ],
     ]
   }
@@ -74,7 +74,7 @@ class FantomLanguageServer
   Void initialized([Str:Obj?] params)
   {
     Env.cur.err.printLine("[fantomLsp] Server initialized")
-    workspaceManager.indexWorkspace(symbolTable, typeResolver, referenceIndex)
+    // workspaceManager.indexWorkspace(symbolTable, typeResolver, referenceIndex)
   }
 
   Void shutdown()
@@ -88,13 +88,12 @@ class FantomLanguageServer
     td := params["textDocument"] as [Str:Obj?]
     item := TextDocumentItem.fromMap(td)
     docManager.open(item)
-
-    parseResult := docManager.parseDocument(item.uri)
-    symbolTable.update(item.uri, parseResult)
-    referenceIndex.update(item.uri, parseResult)
-
-    diags := diagnosticsProvider.computeDiagnostics(item.uri, parseResult)
-    return Serialization.publishDiagnostics(item.uri, diags)
+    // parseResult := docManager.parseDocument(item.uri)
+    // diags := diagnosticsProvider.computeDiagnostics(item.uri, parseResult)
+    // return Serialization.publishDiagnostics(item.uri, diags)
+    // symbolTable.update(item.uri, parseResult)
+    // referenceIndex.update(item.uri, parseResult)
+    return null
   }
 
   [Str:Obj?]? didChange([Str:Obj?] params)
@@ -109,22 +108,22 @@ class FantomLanguageServer
       evt := TextDocumentContentChangeEvent.fromMap(change)
       docManager.change(uri, version, evt)
     }
-
-    parseResult := docManager.parseDocument(uri)
-    symbolTable.update(uri, parseResult)
-    referenceIndex.update(uri, parseResult)
-
-    diags := diagnosticsProvider.computeDiagnostics(uri, parseResult)
-    return Serialization.publishDiagnostics(uri, diags)
+    // parseResult := docManager.parseDocument(uri)
+    // diags := diagnosticsProvider.computeDiagnostics(uri, parseResult)
+    // return Serialization.publishDiagnostics(uri, diags)
+    // symbolTable.update(uri, parseResult)
+    // referenceIndex.update(uri, parseResult)
+    return null
   }
 
   [Str:Obj?]? didClose([Str:Obj?] params)
   {
     uri := Serialization.extractUri(params)
     docManager.close(uri)
-    symbolTable.remove(uri)
-    referenceIndex.remove(uri)
-    return Serialization.publishDiagnostics(uri, Diagnostic[,])
+    // symbolTable.remove(uri)
+    // referenceIndex.remove(uri)
+    // return Serialization.publishDiagnostics(uri, Diagnostic[,])
+    return null
   }
 
   [Str:Obj?]? didSave([Str:Obj?] params)
@@ -132,13 +131,12 @@ class FantomLanguageServer
     uri := Serialization.extractUri(params)
     text := params["text"] as Str
     if (text != null) docManager.updateText(uri, text)
-
-    parseResult := docManager.parseDocument(uri)
-    symbolTable.update(uri, parseResult)
-    referenceIndex.update(uri, parseResult)
-
-    diags := diagnosticsProvider.computeDiagnostics(uri, parseResult)
-    return Serialization.publishDiagnostics(uri, diags)
+    // parseResult := docManager.parseDocument(uri)
+    // diags := diagnosticsProvider.computeDiagnostics(uri, parseResult)
+    // return Serialization.publishDiagnostics(uri, diags)
+    // symbolTable.update(uri, parseResult)
+    // referenceIndex.update(uri, parseResult)
+    return null
   }
 
   Obj? hover([Str:Obj?] params)
@@ -147,25 +145,8 @@ class FantomLanguageServer
     pos := Serialization.extractPosition(params)
     doc := docManager.getDocument(uri)
     if (doc == null) return null
-    return hoverProvider.hover(doc, pos, symbolTable, typeResolver)
-  }
-
-  Obj? definition([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    pos := Serialization.extractPosition(params)
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    return definitionProvider.definition(doc, pos, symbolTable, typeResolver)
-  }
-
-  Obj? references([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    pos := Serialization.extractPosition(params)
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    return referencesProvider.references(doc, pos, symbolTable, referenceIndex)
+    parseResult := docManager.parseDocument(uri)
+    return hoverProvider.hover(doc, parseResult, pos)
   }
 
   Obj? completion([Str:Obj?] params)
@@ -174,7 +155,8 @@ class FantomLanguageServer
     pos := Serialization.extractPosition(params)
     doc := docManager.getDocument(uri)
     if (doc == null) return null
-    return completionProvider.complete(doc, pos, symbolTable, typeResolver)
+    parseResult := docManager.parseDocument(uri)
+    return completionProvider.complete(doc, parseResult, pos)
   }
 
   Obj? signatureHelp([Str:Obj?] params)
@@ -183,81 +165,118 @@ class FantomLanguageServer
     pos := Serialization.extractPosition(params)
     doc := docManager.getDocument(uri)
     if (doc == null) return null
-    return signatureHelpProvider.signatureHelp(doc, pos, symbolTable, typeResolver)
+    parseResult := docManager.parseDocument(uri)
+    return signatureHelpProvider.signatureHelp(doc, parseResult, pos)
   }
 
-  Obj? documentSymbol([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    symbols := symbolTable.getDocumentSymbols(uri)
-    return symbols.map |s| { s.toMap }
-  }
+  // Obj? definition([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   pos := Serialization.extractPosition(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   return definitionProvider.definition(doc, pos, symbolTable, typeResolver)
+  // }
 
-  Obj? formatting([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    opts := params["options"] as [Str:Obj?] ?: [Str:Obj?][:]
-    edits := formattingProvider.format(doc, opts)
-    return edits.map |e| { e.toMap }
-  }
+  // Obj? references([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   pos := Serialization.extractPosition(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   return referencesProvider.references(doc, pos, symbolTable, referenceIndex)
+  // }
 
-  Obj? rename([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    pos := Serialization.extractPosition(params)
-    newName := params["newName"] as Str
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    edit := renameProvider.rename(doc, pos, newName, symbolTable, referenceIndex)
-    return edit?.toMap
-  }
+  // Obj? completion([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   pos := Serialization.extractPosition(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   return completionProvider.complete(doc, pos, symbolTable, typeResolver)
+  // }
 
-  Obj? codeAction([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    range := LspRange.fromMap(params["range"])
-    context := params["context"] as [Str:Obj?] ?: [Str:Obj?][:]
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    return codeActionProvider.codeActions(doc, range, context, symbolTable, typeResolver)
-  }
+  // Obj? signatureHelp([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   pos := Serialization.extractPosition(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   return signatureHelpProvider.signatureHelp(doc, pos, symbolTable, typeResolver)
+  // }
 
-  Obj? semanticTokensFull([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    return semanticTokensProvider.provideTokens(doc, symbolTable, typeResolver)
-  }
+  // Obj? documentSymbol([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   symbols := symbolTable.getDocumentSymbols(uri)
+  //   return symbols.map |s| { s.toMap }
+  // }
 
-  Obj? prepareCallHierarchy([Str:Obj?] params)
-  {
-    uri := Serialization.extractUri(params)
-    pos := Serialization.extractPosition(params)
-    doc := docManager.getDocument(uri)
-    if (doc == null) return null
-    return callHierarchyProvider.prepare(doc, pos, symbolTable)
-  }
+  // Obj? formatting([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   opts := params["options"] as [Str:Obj?] ?: [Str:Obj?][:]
+  //   edits := formattingProvider.format(doc, opts)
+  //   return edits.map |e| { e.toMap }
+  // }
 
-  Obj? callHierarchyIncoming([Str:Obj?] params)
-  {
-    item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
-    return callHierarchyProvider.incomingCalls(item, symbolTable, referenceIndex)
-  }
+  // Obj? rename([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   pos := Serialization.extractPosition(params)
+  //   newName := params["newName"] as Str
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   edit := renameProvider.rename(doc, pos, newName, symbolTable, referenceIndex)
+  //   return edit?.toMap
+  // }
 
-  Obj? callHierarchyOutgoing([Str:Obj?] params)
-  {
-    item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
-    return callHierarchyProvider.outgoingCalls(item, symbolTable, referenceIndex)
-  }
+  // Obj? codeAction([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   range := LspRange.fromMap(params["range"])
+  //   context := params["context"] as [Str:Obj?] ?: [Str:Obj?][:]
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   return codeActionProvider.codeActions(doc, range, context, symbolTable, typeResolver)
+  // }
 
-  Obj? workspaceSymbol([Str:Obj?] params)
-  {
-    query := params["query"] as Str ?: ""
-    return workspaceSymbolProvider.search(query, symbolTable)
-  }
+  // Obj? semanticTokensFull([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   return semanticTokensProvider.provideTokens(doc, symbolTable, typeResolver)
+  // }
+
+  // Obj? prepareCallHierarchy([Str:Obj?] params)
+  // {
+  //   uri := Serialization.extractUri(params)
+  //   pos := Serialization.extractPosition(params)
+  //   doc := docManager.getDocument(uri)
+  //   if (doc == null) return null
+  //   return callHierarchyProvider.prepare(doc, pos, symbolTable)
+  // }
+
+  // Obj? callHierarchyIncoming([Str:Obj?] params)
+  // {
+  //   item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
+  //   return callHierarchyProvider.incomingCalls(item, symbolTable, referenceIndex)
+  // }
+
+  // Obj? callHierarchyOutgoing([Str:Obj?] params)
+  // {
+  //   item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
+  //   return callHierarchyProvider.outgoingCalls(item, symbolTable, referenceIndex)
+  // }
+
+  // Obj? workspaceSymbol([Str:Obj?] params)
+  // {
+  //   query := params["query"] as Str ?: ""
+  //   return workspaceSymbolProvider.search(query, symbolTable)
+  // }
 }

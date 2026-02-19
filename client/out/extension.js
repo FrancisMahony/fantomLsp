@@ -62,6 +62,7 @@ function findJavaExecutable(fanHome) {
             return javaExe;
         }
     }
+    console.log();
     const fanJava = path.join(fanHome, "bin", os.platform() === "win32" ? "java.exe" : "java");
     if (fs.existsSync(fanJava)) {
         return fanJava;
@@ -125,6 +126,19 @@ async function activate(context) {
             transport: node_1.TransportKind.stdio,
         };
     }
+    const launchChannel = vscode_1.window.createOutputChannel("Fantom LSP Launch");
+    launchChannel.appendLine(`[launch] fanHome:  ${fanHome}`);
+    launchChannel.appendLine(`[launch] sysJar:   ${sysJar ?? "(not found, using fan.bat)"}`);
+    launchChannel.appendLine(`[launch] javaExe:  ${javaExe}`);
+    if (sysJar) {
+        const opts = serverOptions;
+        launchChannel.appendLine(`[launch] command:  ${opts.command} ${opts.args.join(" ")}`);
+    }
+    else {
+        const opts = serverOptions;
+        launchChannel.appendLine(`[launch] command:  ${opts.command} ${opts.args.join(" ")}`);
+    }
+    launchChannel.show(true);
     const clientOptions = {
         documentSelector: [{ scheme: "file", language: "fantom" }],
         synchronize: {
