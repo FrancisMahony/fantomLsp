@@ -25,18 +25,8 @@ class FormattingProvider
       buf.add(trimmed)
       result.add(buf.toStr)
 
-      opens := 0; closes := 0
-      inStr := false; escaped := false
-      trimmed.each |ch|
-      {
-        if (escaped) { escaped = false; return }
-        if (ch == '\\') { escaped = true; return }
-        if (ch == '"') { inStr = !inStr; return }
-        if (inStr) return
-        if (ch == '{') opens++
-        else if (ch == '}') closes++
-      }
-      depth = (depth + opens - closes).max(0)
+      braces := countBracesOutsideStrings(trimmed)
+      depth = (depth + braces["opens"] - braces["closes"]).max(0)
       if (trimmed.startsWith("}")) depth = (depth).max(0)
     }
 
@@ -120,5 +110,23 @@ class FormattingProvider
       if (ch == '"') inStr = !inStr
     }
     return inStr
+  }
+
+  private [Str:Int] countBracesOutsideStrings(Str line)
+  {
+    opens := 0
+    closes := 0
+    inStr := false
+    escaped := false
+    line.each |ch|
+    {
+      if (escaped) { escaped = false; return }
+      if (ch == '\\') { escaped = true; return }
+      if (ch == '"') { inStr = !inStr; return }
+      if (inStr) return
+      if (ch == '{') opens++
+      else if (ch == '}') closes++
+    }
+    return ["opens": opens, "closes": closes]
   }
 }

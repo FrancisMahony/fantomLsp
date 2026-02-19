@@ -2,7 +2,7 @@ class FantomLanguageServer
 {
   TextDocumentManager docManager := TextDocumentManager()
   WorkspaceManager workspaceManager := WorkspaceManager()
-  DiagnosticsProvider diagnosticsProvider := DiagnosticsProvider()
+  DiagnosticsProvider diagnosticsProvider
   HoverProvider hoverProvider := HoverProvider()
   DefinitionProvider definitionProvider := DefinitionProvider()
   ReferencesProvider referencesProvider := ReferencesProvider()
@@ -12,8 +12,6 @@ class FantomLanguageServer
   FormattingProvider formattingProvider := FormattingProvider()
   RenameProvider renameProvider := RenameProvider()
   CodeActionProvider codeActionProvider := CodeActionProvider()
-  // SemanticTokensProvider semanticTokensProvider := SemanticTokensProvider()
-  // CallHierarchyProvider callHierarchyProvider := CallHierarchyProvider()
   SymbolTable symbolTable := SymbolTable()
   TypeResolver typeResolver := TypeResolver()
   ReferenceIndex referenceIndex := ReferenceIndex()
@@ -21,6 +19,11 @@ class FantomLanguageServer
   Bool isShutdown := false
   Str[]? workspaceFolders
   Str bracketStyle := "preserve"
+
+  new make()
+  {
+    diagnosticsProvider = DiagnosticsProvider(docManager)
+  }
 
   [Str:Obj?] initialize([Str:Obj?] params)
   {
@@ -99,7 +102,6 @@ class FantomLanguageServer
           if (style != null)
           {
             bracketStyle = style
-            Env.cur.err.printLine("[fantomLsp] Bracket style updated to: $bracketStyle")
           }
         }
       }
@@ -240,7 +242,6 @@ class FantomLanguageServer
     if (doc == null) return null
     opts := params["options"] as [Str:Obj?] ?: [Str:Obj?][:]
     opts["bracketStyle"] = bracketStyle
-    Env.cur.err.printLine("[fantomLsp] Formatting with bracketStyle: $bracketStyle, opts: $opts")
     edits := formattingProvider.format(doc, opts)
     return edits.map |e| { e.toMap }
   }

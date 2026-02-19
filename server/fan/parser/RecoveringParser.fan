@@ -3,29 +3,156 @@ class RecoveringParser
   private Str[] lines := [,]
   private Int curLine := 0
   private ParseResult result := ParseResult("")
-  private static const Str[] modifierKeywords := ["public", "protected", "private", "internal",
-    "static", "virtual", "override", "abstract", "final", "const", "native", "once", "readonly"]
-  private static const Str[] typeKeywords := ["class", "mixin", "enum", "facet"]
-
-  ParseResult parse(Str uri, Str text)
-  {
-    this.result = ParseResult(uri)
-    this.lines = text.splitLines
+  private CompilerDiagnostics? compilerDiag := null
+    private static const Str[] modifierKeywords := ["public", "protected", "private", "internal",
+  "static", "virtual", "override", "abstract", "final", "const", "native", "once", "readonly"]
+private static const Str[] typeKeywords := ["class", "mixin", "enum", "facet"]
+  
+  new make()
+    {
+    try
+    {
+compilerDiag = CompilerDiagnostics()
+    }
+    catch (Err e)
+      {
+      Env.cur.err.printLine("[RecoveringParser] Failed to initialize CompilerDiagnostics: $e")
+        }
+      }
+      
+      ParseResult parse(Str uri, Str text)
+        {
+        this.result = ParseResult(uri)
+      this.lines = text.splitLines
     this.curLine = 0
 
     while (curLine < lines.size)
     {
-      try
+  try
+  {
+  parseLine
+  }
+  catch (Err e)
+  {
+  addError(curLine, 0, "Parse error: $e.msg")
+  curLine++
+  }
+  }
+  
+  validateBraceBalance
+  addCompilerDiagnostics(uri, text)
+  return result
+  }
+  
+  private Void addCompilerDiagnostics(Str uri, Str text)
+  {
+  if (compilerDiag == null) return
+  
+  try
+  {
+  compilerErrors := compilerDiag.compileAndGetErrors(uri, text)
+  parseErrors := compilerDiag.convertToParseErrors(compilerErrors)
+  parseErrors.each |err|
+  {
+  result.errors.add(err)
+  }
+  }
+  catch (Err e)
+  {
+  Env.cur.err.printLine("[RecoveringParser] Compiler diagnostics failed: $e")
+  }
+  }
+
+  private Void validateBraceBalance()
+  {
+    openBraces := Int[,]
+    openParens := Int[,]
+    openBrackets := Int[,]
+
+    lines.each |line, lineNum|
+    {
+      inString := false
+      escaped := false
+      i := 0
+
+      while (i < line.size)
       {
-        parseLine
-      }
-      catch (Err e)
-      {
-        addError(curLine, 0, "Parse error: $e.msg")
-        curLine++
+        ch := line[i]
+
+        if (escaped)
+        {
+          escaped = false
+          i++
+          continue
+        }
+
+        if (ch == '\\')
+        {
+          escaped = true
+          i++
+          continue
+        }
+
+        if (ch == '"')
+        {
+          inString = !inString
+          i++
+          continue
+        }
+
+        if (inString)
+        {
+          i++
+          continue
+        }
+
+        if (ch == '/' && i + 1 < line.size && line[i + 1] == '/')
+          break
+
+        if (ch == '{')
+          openBraces.push(lineNum)
+        else if (ch == '}')
+        {
+          if (openBraces.isEmpty)
+            addError(lineNum, i, "Unexpected closing brace '}'")
+          else
+            openBraces.pop
+        }
+        else if (ch == '(')
+          openParens.push(lineNum)
+        else if (ch == ')')
+        {
+          if (openParens.isEmpty)
+            addError(lineNum, i, "Unexpected closing parenthesis ')'")
+          else
+            openParens.pop
+        }
+        else if (ch == '[')
+          openBrackets.push(lineNum)
+        else if (ch == ']')
+        {
+          if (openBrackets.isEmpty)
+            addError(lineNum, i, "Unexpected closing bracket ']'")
+          else
+            openBrackets.pop
+        }
+
+        i++
       }
     }
-    return result
+
+    openBraces.each |lineNum|
+    {
+      addError(lineNum, 0, "Unclosed brace '{'")
+    }
+    openParens.each |lineNum|
+    {
+      addError(lineNum, 0, "Unclosed parenthesis '('")
+    }
+    openBrackets.each |lineNum|
+    {
+      addError(lineNum, 0, "Unclosed bracket '['")
+    }
   }
 
   private Void parseLine()

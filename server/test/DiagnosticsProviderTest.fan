@@ -1,7 +1,13 @@
 class DiagnosticsProviderTest : Test
 {
-  private DiagnosticsProvider provider := DiagnosticsProvider()
+  private TextDocumentManager docManager := TextDocumentManager()
+  private DiagnosticsProvider? provider
   private RecoveringParser parser := RecoveringParser()
+
+  override Void setup()
+  {
+    provider = DiagnosticsProvider(docManager)
+  }
 
   private ParseResult parse(Str src) { parser.parse("file:///test.fan", src) }
 
@@ -70,5 +76,24 @@ class DiagnosticsProviderTest : Test
     verifyEq(diags[0].range.end.character, 20)
     verifyEq(diags[0].severity, Diagnostic.error)
     verifyEq(diags[0].source, "fantomLsp")
+  }
+
+  Void testComplexValidCodeProducesNoDiagnostics()
+  {
+    src :=
+      "class Example
+       {
+         Str name
+         Int count := 0
+
+         new make(Str name) { this.name = name }
+
+         Void increment() { count++ }
+
+         override Str toStr() { \"Example: \$name (\$count)\" }
+       }"
+    result := parse(src)
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
   }
 }
