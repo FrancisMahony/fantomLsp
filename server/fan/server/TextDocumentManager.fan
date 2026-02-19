@@ -39,6 +39,11 @@ class TextDocumentManager
     }
   }
 
+  Str[] openUris()
+  {
+    documents.keys.dup
+  }
+
   DocumentState? getDocument(Str uri)
   {
     documents[uri]

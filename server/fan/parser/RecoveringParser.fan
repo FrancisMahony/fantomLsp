@@ -3,64 +3,33 @@ class RecoveringParser
   private Str[] lines := [,]
   private Int curLine := 0
   private ParseResult result := ParseResult("")
-  private CompilerDiagnostics? compilerDiag := null
-    private static const Str[] modifierKeywords := ["public", "protected", "private", "internal",
-  "static", "virtual", "override", "abstract", "final", "const", "native", "once", "readonly"]
-private static const Str[] typeKeywords := ["class", "mixin", "enum", "facet"]
-  
-  new make()
-    {
-    try
-    {
-compilerDiag = CompilerDiagnostics()
-    }
-    catch (Err e)
-      {
-      Env.cur.err.printLine("[RecoveringParser] Failed to initialize CompilerDiagnostics: $e")
-        }
-      }
-      
-      ParseResult parse(Str uri, Str text)
-        {
-        this.result = ParseResult(uri)
-      this.lines = text.splitLines
+  private static const Str[] modifierKeywords := ["public", "protected", "private", "internal",
+    "static", "virtual", "override", "abstract", "final", "const", "native", "once", "readonly"]
+  private static const Str[] typeKeywords := ["class", "mixin", "enum", "facet"]
+
+  new make() {}
+
+  ParseResult parse(Str uri, Str text)
+  {
+    this.result = ParseResult(uri)
+    this.lines = text.splitLines
     this.curLine = 0
 
     while (curLine < lines.size)
     {
-  try
-  {
-  parseLine
-  }
-  catch (Err e)
-  {
-  addError(curLine, 0, "Parse error: $e.msg")
-  curLine++
-  }
-  }
-  
-  validateBraceBalance
-  addCompilerDiagnostics(uri, text)
-  return result
-  }
-  
-  private Void addCompilerDiagnostics(Str uri, Str text)
-  {
-  if (compilerDiag == null) return
-  
-  try
-  {
-  compilerErrors := compilerDiag.compileAndGetErrors(uri, text)
-  parseErrors := compilerDiag.convertToParseErrors(compilerErrors)
-  parseErrors.each |err|
-  {
-  result.errors.add(err)
-  }
-  }
-  catch (Err e)
-  {
-  Env.cur.err.printLine("[RecoveringParser] Compiler diagnostics failed: $e")
-  }
+      try
+      {
+        parseLine
+      }
+      catch (Err e)
+      {
+        addError(curLine, 0, "Parse error: $e.msg")
+        curLine++
+      }
+    }
+
+    validateBraceBalance
+    return result
   }
 
   private Void validateBraceBalance()

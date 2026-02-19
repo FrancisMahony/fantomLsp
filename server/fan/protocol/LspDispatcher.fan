@@ -124,8 +124,7 @@ class LspDispatcher
         diags := server.didClose(params)
         if (diags != null) notifications.add(diags)
       case "textDocument/didSave":
-        diags := server.didSave(params)
-        if (diags != null) notifications.add(diags)
+        server.didSave(params).each |n| { notifications.add(n) }
       case "exit":
         shouldExit = true
         exitCode = server.isShutdown ? 0 : 1

@@ -148,7 +148,7 @@ class FantomLanguageServer
     return Serialization.publishDiagnostics(uri, Diagnostic[,])
   }
 
-  [Str:Obj?]? didSave([Str:Obj?] params)
+  [Str:Obj?][] didSave([Str:Obj?] params)
   {
     uri := Serialization.extractUri(params)
     text := params["text"] as Str
@@ -157,7 +157,21 @@ class FantomLanguageServer
     diags := diagnosticsProvider.computeDiagnostics(uri, parseResult)
     symbolTable.update(uri, parseResult)
     referenceIndex.update(uri, parseResult)
-    return Serialization.publishDiagnostics(uri, diags)
+
+    result := [Str:Obj?][,]
+    result.add(Serialization.publishDiagnostics(uri, diags))
+
+    // Republish diagnostics for all other open files so cross-file
+    // effects (e.g. saving build.fan) are reflected immediately.
+    docManager.openUris.each |otherUri|
+    {
+      if (otherUri == uri) return
+      otherParse := docManager.parseDocument(otherUri)
+      otherDiags := diagnosticsProvider.computeDiagnostics(otherUri, otherParse)
+      result.add(Serialization.publishDiagnostics(otherUri, otherDiags))
+    }
+
+    return result
   }
 
   Obj? hover([Str:Obj?] params)
