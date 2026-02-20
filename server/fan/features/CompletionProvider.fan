@@ -25,13 +25,10 @@ class CompletionProvider : LspUtils
     prefix := pos.character <= line.size ? line[0..<pos.character] : line
 
     // Extract the word being typed
-    word := ""
-    i := prefix.size - 1
-    while (i >= 0 && isIdentChar(prefix[i]))
-    {
-      word = prefix[i].toChar + word
-      i--
-    }
+    wordEnd := prefix.size - 1
+    i := wordEnd
+    while (i >= 0 && isIdentChar(prefix[i])) i--
+    word := i < wordEnd ? prefix[i+1..wordEnd] : ""
 
     isDot := i >= 0 && prefix[i] == '.'
 
@@ -40,13 +37,10 @@ class CompletionProvider : LspUtils
 
     if (isDot)
     {
-      receiver := ""
-      j := i - 1
-      while (j >= 0 && isIdentChar(prefix[j]))
-      {
-        receiver = prefix[j].toChar + receiver
-        j--
-      }
+      recvEnd := i - 1
+      j := recvEnd
+      while (j >= 0 && isIdentChar(prefix[j])) j--
+      receiver := j < recvEnd ? prefix[j+1..recvEnd] : ""
       if (!receiver.isEmpty)
         items = dotCompletions(receiver, word, doc, parseResult, podNames, pos.line)
     }

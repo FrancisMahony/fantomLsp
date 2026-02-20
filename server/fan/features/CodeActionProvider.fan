@@ -109,32 +109,29 @@ class CodeActionProvider
   {
     usingNodes := parseResult.nodes.findAll |node| { node.kind == AstNodeKind.usingDef }
     if (usingNodes.isEmpty) return [,]
-    text := doc.text
+    lines := doc.text.splitLines
     return usingNodes.findAll |node|
     {
       name := node.name
+      skipLine := node.range.start.line
       colonIdx := name.index("::")
       if (colonIdx != null)
       {
         typeName := name[colonIdx+2..-1]
-        return !textContainsWordBesideLine(text, typeName, node.range.start.line)
+        return !lines.any |line, idx| { idx != skipLine && line.contains(typeName) }
       }
       else
       {
         if (name == "sys") return false
         pod := Pod.find(name, false)
         if (pod == null) return false
-        return pod.types.all |t| { !textContainsWordBesideLine(text, t.name, node.range.start.line) }
+        // Build one string from all non-using lines, then check each type name with a
+        // single contains() call — O(lines + types) instead of O(types × lines).
+        buf := StrBuf()
+        lines.each |line, idx| { if (idx != skipLine) buf.add(line).add("\n") }
+        docText := buf.toStr
+        return pod.types.all |t| { !docText.contains(t.name) }
       }
-    }
-  }
-
-  private Bool textContainsWordBesideLine(Str text, Str word, Int skipLine)
-  {
-    return text.splitLines.any |line, idx|
-    {
-      if (idx == skipLine) return false
-      return line.contains(word)
     }
   }
 }

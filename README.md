@@ -29,8 +29,8 @@ A full-featured Language Server Protocol (LSP) implementation for the [Fantom pr
 
 ## Requirements
 
-- [Fantom](https://fantom.org/doc/docTools/Setup) 1.0.77 or later installed and on `PATH` (or set `fantom.home` in VS Code settings)
-- Java 11+ (required by Fantom)
+- Fantom 1.0 or later **or** a [SkySpark](https://skyfoundry.com/product) installation — either is accepted. Set `fantom.home` (or `FAN_HOME`) to the installation root.
+- Java 11+ (required by Fantom/SkySpark)
 - VS Code 1.75+
 
 ## Installation
@@ -60,7 +60,7 @@ Open the repo root in VS Code and press `F5` to launch an Extension Development 
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `fantom.home` | `""` | Path to Fantom installation (`FAN_HOME`). Falls back to `FAN_HOME` env var and `PATH`. |
+| `fantom.home` | `""` | Path to Fantom/SkySpark installation root (`FAN_HOME`). Falls back to the `FAN_HOME` environment variable. |
 | `fantom.javaOpts` | `"-Xmx1024m"` | JVM options passed to the language server process. |
 | `fantom.formatting.bracketStyle` | `"preserve"` | Bracket style for formatting: `preserve`, `k&r`, or `allman`. |
 | `fantom.trace.server` | `"off"` | LSP message tracing: `off`, `messages`, or `verbose`. |
@@ -76,25 +76,25 @@ fantomLsp/
 │
 ├── server/                          # Fantom LSP server pod
 │   ├── build.fan                    # BuildPod script
-│   └── fan/
-│       ├── protocol/                # JSON-RPC framing, LSP message types, dispatcher
-│       ├── server/                  # FantomLanguageServer, TextDocumentManager, WorkspaceManager
-│       ├── parser/                  # Error-recovering parser, partial AST
-│       ├── analysis/                # SymbolTable, TypeResolver, ReferenceIndex
-│       ├── features/                # One provider class per LSP feature
-│       └── test/                    # Unit tests (fan build.fan test)
+│   ├── fan/
+│   │   ├── protocol/                # JSON-RPC framing, LSP message types, dispatcher
+│   │   ├── server/                  # FantomLanguageServer, TextDocumentManager, WorkspaceManager
+│   │   ├── parser/                  # Error-recovering parser, partial AST
+│   │   ├── analysis/                # SymbolTable, TypeResolver, ReferenceIndex
+│   │   └── features/                # One provider class per LSP feature
+│   └── test/                        # Unit tests
 │
-└── scripts/                         # build.bat / build.sh / test.bat / test.sh
+└── scripts/                         # build.bat / build.sh
 ```
 
 ## Running Tests
 
 ```bash
 cd server
-fan build.fan test
+fant fantomLsp
 ```
 
-All tests run via Fantom's built-in `fant` test runner. The suite covers all providers, the parser, serialization, and analysis layers (~300 tests).
+Tests run via Fantom's built-in `fant` runner. The suite covers all providers, the parser, serialization, and analysis layers (~300 tests).
 
 ## Architecture
 

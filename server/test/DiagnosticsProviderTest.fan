@@ -78,6 +78,24 @@ class DiagnosticsProviderTest : Test
     verifyEq(diags[0].source, "fantomLsp")
   }
 
+  Void testCharLiteralContainingQuoteProducesNoDiagnostics()
+  {
+    // '"' inside a char literal must not be treated as an open string quote,
+    // which would cause the closing ')' to be swallowed and produce a false
+    // "Unclosed parenthesis '('" diagnostic.
+    src :=
+      "class Foo
+       {
+         Void bar()
+         {
+           parts := trimmed.split('\"')
+         }
+       }"
+    result := parse(src)
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
+  }
+
   Void testComplexValidCodeProducesNoDiagnostics()
   {
     src :=

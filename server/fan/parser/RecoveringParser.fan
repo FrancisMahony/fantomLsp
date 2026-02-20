@@ -62,6 +62,15 @@ class RecoveringParser
           continue
         }
 
+        if (ch == '\'' && !inString)
+        {
+          i++ // skip opening '
+          if (i < line.size && line[i] == '\\') i++ // skip backslash in escape sequence
+          if (i < line.size) i++ // skip character value
+          if (i < line.size && line[i] == '\'') i++ // skip closing '
+          continue
+        }
+
         if (ch == '"')
         {
           inString = !inString

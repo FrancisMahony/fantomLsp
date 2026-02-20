@@ -25,26 +25,19 @@ class SignatureHelpProvider : LspUtils
     if (funcEnd < 0) return null
 
     // Extract the function/method name before '('
-    funcName := ""
     j := funcEnd - 1
-    while (j >= 0 && isIdentChar(prefix[j]))
-    {
-      funcName = prefix[j].toChar + funcName
-      j--
-    }
+    while (j >= 0 && isIdentChar(prefix[j])) j--
+    funcName := j + 1 <= funcEnd - 1 ? prefix[j+1..funcEnd-1] : ""
     if (funcName.isEmpty) return null
 
     // Check for a receiver before the dot: "receiver.funcName("
     Str? receiver := null
     if (j >= 0 && prefix[j] == '.')
     {
-      k := j - 1
-      recv := ""
-      while (k >= 0 && isIdentChar(prefix[k]))
-      {
-        recv = prefix[k].toChar + recv
-        k--
-      }
+      recvEnd := j - 1
+      k := recvEnd
+      while (k >= 0 && isIdentChar(prefix[k])) k--
+      recv := k < recvEnd ? prefix[k+1..recvEnd] : ""
       if (!recv.isEmpty) receiver = recv
     }
 

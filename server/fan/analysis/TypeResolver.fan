@@ -44,44 +44,8 @@ class TypeResolver
     return null
   }
 
-  Str formatSignature(AstNode node)
-  {
-    buf := StrBuf()
-    if (!node.modifiers.isEmpty) buf.add(node.modifiers.join(" ")).add(" ")
+  private static const Str[] sysTypeNames :=
+    Pod.find("sys").types.map |t -> Str| { t.name }.toImmutable
 
-    switch (node.kind)
-    {
-      case AstNodeKind.methodDef:
-        if (node.returnType != null) buf.add(node.returnType).add(" ")
-        buf.add(node.name).add("(")
-        if (node.params != null) buf.add(node.params.join(", "))
-        buf.add(")")
-      case AstNodeKind.ctorDef:
-        buf.add("new ").add(node.name).add("(")
-        if (node.params != null) buf.add(node.params.join(", "))
-        buf.add(")")
-      case AstNodeKind.fieldDef:
-        if (node.typeName != null) buf.add(node.typeName).add(" ")
-        buf.add(node.name)
-      case AstNodeKind.classDef:
-        buf.add("class ").add(node.name)
-      case AstNodeKind.mixinDef:
-        buf.add("mixin ").add(node.name)
-      case AstNodeKind.enumDef:
-        buf.add("enum class ").add(node.name)
-      default:
-        buf.add(node.name)
-    }
-    return buf.toStr
-  }
-
-  private static Bool isSysType(Str name)
-  {
-    sysTypes := ["Obj", "Bool", "Int", "Float", "Decimal", "Str", "Duration",
-      "Uri", "Type", "Range", "List", "Map", "Buf", "InStream", "OutStream",
-      "File", "Err", "Void", "This", "Num", "Enum", "Facet", "Pod", "Slot",
-      "Field", "Method", "Func", "Future", "DateTime", "Date", "Time",
-      "TimeZone", "Locale", "Log", "Regex", "Version", "Depend", "Charset"]
-    return sysTypes.contains(name)
-  }
+  private static Bool isSysType(Str name) { sysTypeNames.contains(name) }
 }
