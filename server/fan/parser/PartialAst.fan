@@ -18,6 +18,14 @@ class BodyRef
   new make(Str name, LspRange range) { this.name = name; this.range = range }
 }
 
+class BodyCallRef
+{
+  Str name
+  LspRange range
+
+  new make(Str name, LspRange range) { this.name = name; this.range = range }
+}
+
 class ParseError
 {
   LspRange range
@@ -61,6 +69,7 @@ class AstNode
   Str? doc
   Str? returnType
   Str[]? params
+  BodyCallRef[] bodyCallRefs := [,]
 
   new make(AstNodeKind kind, Str name, LspRange range, LspRange selectionRange)
   {

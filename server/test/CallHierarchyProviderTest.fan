@@ -77,12 +77,92 @@ class CallHierarchyProviderTest : Test
     verifyEq(result.size, 0)
   }
 
-  Void testOutgoingCallsAlwaysEmpty()
+  Void testOutgoingCallsEmptyName()
   {
     idx := ReferenceIndex()
-    item := [Str:Obj?]["name": "bar"]
+    item := [Str:Obj?]["name": ""]
     result := provider.outgoingCalls(item, SymbolTable(), idx) as List
     verifyNotNull(result)
     verifyEq(result.size, 0)
+  }
+
+  Void testOutgoingCallsNoBody()
+  {
+    src := "class Foo\n{\n  Void bar() {}\n}"
+    table := makeTable(src)
+    idx := makeIndex(src)
+    item := [Str:Obj?]["name": "bar", "uri": "file:///test.fan"]
+    result := provider.outgoingCalls(item, table, idx) as List
+    verifyNotNull(result)
+    verifyEq(result.size, 0)
+  }
+
+  Void testOutgoingCallsFindsCallee()
+  {
+    src :=
+      "class Foo\n" +
+      "{\n" +
+      "  Void caller()\n" +
+      "  {\n" +
+      "    helper()\n" +
+      "  }\n" +
+      "  Void helper() {}\n" +
+      "}"
+    table := makeTable(src)
+    idx := makeIndex(src)
+    item := [Str:Obj?]["name": "caller", "uri": "file:///test.fan"]
+    result := provider.outgoingCalls(item, table, idx) as List
+    verifyNotNull(result)
+    verifyEq(result.size, 1)
+    entry := result[0] as [Str:Obj?]
+    verifyNotNull(entry)
+    to := entry["to"] as [Str:Obj?]
+    verifyNotNull(to)
+    verifyEq(to["name"], "helper")
+  }
+
+  Void testOutgoingCallsIgnoresKeywords()
+  {
+    src :=
+      "class Foo\n" +
+      "{\n" +
+      "  Void caller()\n" +
+      "  {\n" +
+      "    if (true) helper()\n" +
+      "  }\n" +
+      "  Void helper() {}\n" +
+      "}"
+    table := makeTable(src)
+    idx := makeIndex(src)
+    item := [Str:Obj?]["name": "caller", "uri": "file:///test.fan"]
+    result := provider.outgoingCalls(item, table, idx) as List
+    verifyNotNull(result)
+    verifyEq(result.size, 1)
+    entry := result[0] as [Str:Obj?]
+    to := entry["to"] as [Str:Obj?]
+    verifyEq(to["name"], "helper")
+  }
+
+  Void testOutgoingCallsFromRangePresent()
+  {
+    src :=
+      "class Foo\n" +
+      "{\n" +
+      "  Void caller()\n" +
+      "  {\n" +
+      "    helper()\n" +
+      "  }\n" +
+      "  Void helper() {}\n" +
+      "}"
+    table := makeTable(src)
+    idx := makeIndex(src)
+    item := [Str:Obj?]["name": "caller", "uri": "file:///test.fan"]
+    result := provider.outgoingCalls(item, table, idx) as List
+    verifyNotNull(result)
+    verify(result.size >= 1)
+    entry := result[0] as [Str:Obj?]
+    fromRanges := entry["fromRanges"] as List
+    verifyNotNull(fromRanges)
+    verifyEq(fromRanges.size, 1)
   }
 }

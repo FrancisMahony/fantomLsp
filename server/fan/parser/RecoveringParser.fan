@@ -387,6 +387,7 @@ class RecoveringParser
     }
 
     endLine := startLine
+    callRefs := BodyCallRef[,]
     if (rest.contains("{"))
     {
       depth := 0
@@ -403,6 +404,7 @@ class RecoveringParser
         {
           cl := lines[curLine]
           extractBodyTypeRefs(curLine, cl)
+          extractBodyCallRefs(curLine, cl, callRefs)
           cl.each |ch|
           {
             if (ch == '{') depth++
@@ -429,6 +431,7 @@ class RecoveringParser
         {
           cl := lines[curLine]
           extractBodyTypeRefs(curLine, cl)
+          extractBodyCallRefs(curLine, cl, callRefs)
           cl.each |ch|
           {
             if (ch == '{') depth++
@@ -450,6 +453,7 @@ class RecoveringParser
     node.returnType = returnType
     node.params = params
     node.doc = doc
+    node.bodyCallRefs = callRefs
     return node
   }
 
@@ -549,6 +553,47 @@ class RecoveringParser
         name := buf.toStr
         r := LspRange(Position(lineNum, i), Position(lineNum, i + name.size))
         result.bodyRefs.add(BodyRef(name, r))
+        i = j
+      }
+      else i++
+    }
+  }
+
+  private static const Str[] bodyCallKeywords := [
+    "if", "else", "while", "for", "foreach", "return", "throw",
+    "try", "catch", "finally", "switch", "case", "break", "continue", "super"
+  ]
+
+  private Void extractBodyCallRefs(Int lineNum, Str lineText, BodyCallRef[] callRefs)
+  {
+    inStr := false
+    i := 0
+    while (i < lineText.size)
+    {
+      ch := lineText[i]
+      if (inStr)
+      {
+        if (ch == '"') inStr = false
+        i++
+        continue
+      }
+      if (ch == '"') { inStr = true; i++; continue }
+      if (ch == '/' && i + 1 < lineText.size && lineText[i+1] == '/') break
+      if ((ch.isAlpha || ch == '_') && (i == 0 || (!lineText[i-1].isAlphaNum && lineText[i-1] != '_')))
+      {
+        j := i
+        buf := StrBuf()
+        while (j < lineText.size && (lineText[j].isAlphaNum || lineText[j] == '_'))
+        {
+          buf.addChar(lineText[j])
+          j++
+        }
+        name := buf.toStr
+        if (j < lineText.size && lineText[j] == '(' && !bodyCallKeywords.contains(name))
+        {
+          r := LspRange(Position(lineNum, i), Position(lineNum, i + name.size))
+          callRefs.add(BodyCallRef(name, r))
+        }
         i = j
       }
       else i++

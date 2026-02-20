@@ -42,6 +42,34 @@ class CallHierarchyProvider
 
   Obj? outgoingCalls([Str:Obj?] item, SymbolTable symbolTable, ReferenceIndex referenceIndex)
   {
-    return [,]
+    name := item["name"] as Str ?: ""
+    uri := item["uri"] as Str ?: ""
+    if (name.isEmpty) return [,]
+
+    entries := symbolTable.findAllByName(name)
+    result := [Str:Obj?][,]
+
+    entries.each |e|
+    {
+      if (!uri.isEmpty && e.uri != uri) return
+      node := e.node
+      node.bodyCallRefs.each |cr|
+      {
+        callee := symbolTable.findByName(cr.name)
+        if (callee == null) return
+        if (callee.node.kind != AstNodeKind.methodDef && callee.node.kind != AstNodeKind.ctorDef) return
+        result.add([
+          "to": [
+            "name": callee.node.name,
+            "kind": callee.node.symbolKind,
+            "uri": callee.uri,
+            "range": callee.node.range.toMap,
+            "selectionRange": callee.node.selectionRange.toMap,
+          ],
+          "fromRanges": [cr.range.toMap],
+        ])
+      }
+    }
+    return result
   }
 }
