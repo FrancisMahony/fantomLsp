@@ -2,11 +2,20 @@ class ParseResult
 {
   AstNode[] nodes := [,]
   ParseError[] errors := [,]
+  BodyRef[] bodyRefs := [,]
   Str uri
 
   new make(Str uri) { this.uri = uri }
 
   static ParseResult empty() { ParseResult("") }
+}
+
+class BodyRef
+{
+  Str name
+  LspRange range
+
+  new make(Str name, LspRange range) { this.name = name; this.range = range }
 }
 
 class ParseError

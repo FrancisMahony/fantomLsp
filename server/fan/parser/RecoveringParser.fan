@@ -402,6 +402,7 @@ class RecoveringParser
         while (curLine < lines.size && depth > 0)
         {
           cl := lines[curLine]
+          extractBodyTypeRefs(curLine, cl)
           cl.each |ch|
           {
             if (ch == '{') depth++
@@ -427,6 +428,7 @@ class RecoveringParser
         while (curLine < lines.size && depth > 0)
         {
           cl := lines[curLine]
+          extractBodyTypeRefs(curLine, cl)
           cl.each |ch|
           {
             if (ch == '{') depth++
@@ -518,6 +520,39 @@ class RecoveringParser
     node.typeName = typeName
     node.doc = doc
     return node
+  }
+
+  private Void extractBodyTypeRefs(Int lineNum, Str lineText)
+  {
+    inStr := false
+    i := 0
+    while (i < lineText.size)
+    {
+      ch := lineText[i]
+      if (inStr)
+      {
+        if (ch == '"') inStr = false
+        i++
+        continue
+      }
+      if (ch == '"') { inStr = true; i++; continue }
+      if (ch == '/' && i + 1 < lineText.size && lineText[i+1] == '/') break
+      if (ch.isUpper && (i == 0 || (!lineText[i-1].isAlphaNum && lineText[i-1] != '_')))
+      {
+        j := i
+        buf := StrBuf()
+        while (j < lineText.size && (lineText[j].isAlphaNum || lineText[j] == '_'))
+        {
+          buf.addChar(lineText[j])
+          j++
+        }
+        name := buf.toStr
+        r := LspRange(Position(lineNum, i), Position(lineNum, i + name.size))
+        result.bodyRefs.add(BodyRef(name, r))
+        i = j
+      }
+      else i++
+    }
   }
 
   private Str extractName(Str text)

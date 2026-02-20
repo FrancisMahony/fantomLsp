@@ -25,6 +25,10 @@ class ReferenceIndex
         }
       }
     }
+    result.bodyRefs.each |br|
+    {
+      entries.add(Reference(br.name, uri, br.range))
+    }
     refs[uri] = entries
   }
 
