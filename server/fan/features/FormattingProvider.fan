@@ -26,8 +26,8 @@ class FormattingProvider
       result.add(buf.toStr)
 
       braces := countBracesOutsideStrings(trimmed)
-      depth = (depth + braces["opens"] - braces["closes"]).max(0)
-      if (trimmed.startsWith("}")) depth = (depth).max(0)
+      closesAdj := trimmed.startsWith("}") ? (braces["closes"] - 1).max(0) : braces["closes"]
+      depth = (depth + braces["opens"] - closesAdj).max(0)
     }
 
     formatted := result.join("\n")

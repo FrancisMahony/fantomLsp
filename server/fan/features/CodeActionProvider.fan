@@ -1,6 +1,6 @@
 class CodeActionProvider
 {
-  Obj? codeActions(DocumentState doc, LspRange range, [Str:Obj?] context, SymbolTable symbolTable, TypeResolver typeResolver)
+  Obj? codeActions(DocumentState doc, ParseResult parseResult, LspRange range, [Str:Obj?] context)
   {
     actions := [Str:Obj?][,]
 
@@ -10,14 +10,51 @@ class CodeActionProvider
       diagnostics.each |[Str:Obj?] diag|
       {
         msg := diag["message"] as Str ?: ""
-        if (msg.contains("using"))
+        typeName := extractUnknownTypeName(msg)
+        if (typeName != null)
         {
-          actions.add([
-            "title": "Add missing using statement",
-            "kind": "quickfix",
-          ])
+          Pod? foundPod := null
+          Pod.list.eachWhile |p|
+          {
+            if (p.type(typeName, false) != null) { foundPod = p; return p }
+            return null
+          }
+          if (foundPod != null)
+          {
+            insertLine := findUsingInsertLine(parseResult)
+            insertPos := Position(insertLine, 0)
+            insertRange := LspRange(insertPos, insertPos)
+            actions.add([
+              "title": "Add 'using ${foundPod.name}'",
+              "kind": "quickfix",
+              "edit": [
+                "changes": [
+                  doc.uri: [
+                    ["range": insertRange.toMap, "newText": "using ${foundPod.name}\n"],
+                  ],
+                ],
+              ],
+            ])
+          }
         }
       }
+    }
+
+    findUnusedUsings(doc, parseResult).each |node|
+    {
+      lineNum := node.range.start.line
+      removeRange := LspRange(Position(lineNum, 0), Position(lineNum + 1, 0))
+      actions.add([
+        "title": "Remove unused 'using ${node.name}'",
+        "kind": "quickfix",
+        "edit": [
+          "changes": [
+            doc.uri: [
+              ["range": removeRange.toMap, "newText": ""],
+            ],
+          ],
+        ],
+      ])
     }
 
     line := doc.getLine(range.start.line)
@@ -41,5 +78,63 @@ class CodeActionProvider
     }
 
     return actions
+  }
+
+  Str? extractUnknownTypeName(Str msg)
+  {
+    marker := "Unknown type '"
+    idx := msg.index(marker)
+    if (idx == null) return null
+    start := idx + marker.size
+    end := msg.index("'", start)
+    if (end == null) return null
+    name := msg[start..<end]
+    colonIdx := name.index("::")
+    if (colonIdx != null) name = name[colonIdx+2..-1]
+    return name
+  }
+
+  Int findUsingInsertLine(ParseResult parseResult)
+  {
+    lastLine := -1
+    parseResult.nodes.each |node|
+    {
+      if (node.kind == AstNodeKind.usingDef)
+        lastLine = lastLine.max(node.range.end.line)
+    }
+    return lastLine + 1
+  }
+
+  AstNode[] findUnusedUsings(DocumentState doc, ParseResult parseResult)
+  {
+    usingNodes := parseResult.nodes.findAll |node| { node.kind == AstNodeKind.usingDef }
+    if (usingNodes.isEmpty) return [,]
+    text := doc.text
+    return usingNodes.findAll |node|
+    {
+      name := node.name
+      colonIdx := name.index("::")
+      if (colonIdx != null)
+      {
+        typeName := name[colonIdx+2..-1]
+        return !textContainsWordBesideLine(text, typeName, node.range.start.line)
+      }
+      else
+      {
+        if (name == "sys") return false
+        pod := Pod.find(name, false)
+        if (pod == null) return false
+        return pod.types.all |t| { !textContainsWordBesideLine(text, t.name, node.range.start.line) }
+      }
+    }
+  }
+
+  private Bool textContainsWordBesideLine(Str text, Str word, Int skipLine)
+  {
+    return text.splitLines.any |line, idx|
+    {
+      if (idx == skipLine) return false
+      return line.contains(word)
+    }
   }
 }

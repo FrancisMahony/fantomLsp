@@ -100,4 +100,20 @@ class FormattingProviderTest : Test
     verifyFalse(formatted.contains("class User {"))
     verifyFalse(formatted.contains("class Cat {"))
   }
+
+  Void testMethodAfterClosingBrace()
+  {
+    unformatted := "class Foo {\n  Void setup() {\n    doWork()\n  }\n\nVoid doWork() {}\n}"
+
+    doc := DocumentState("file:///test.fan", 1, unformatted)
+    provider := FormattingProvider()
+    opts := ["tabSize": 2, "insertSpaces": true]
+
+    edits := provider.format(doc, opts)
+
+    verifyEq(edits.size, 1)
+    formatted := edits[0].newText
+    verify(formatted.contains("  Void setup()"))
+    verify(formatted.contains("  Void doWork()"))
+  }
 }

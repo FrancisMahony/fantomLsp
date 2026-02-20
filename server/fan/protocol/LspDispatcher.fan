@@ -88,16 +88,16 @@ class LspDispatcher
         return server.rename(params)
       case "textDocument/prepareRename":
         return server.prepareRename(params)
-      // case "textDocument/codeAction":
-      //   return server.codeAction(params)
-      // case "textDocument/semanticTokens/full":
-      //   return server.semanticTokensFull(params)
-      // case "textDocument/prepareCallHierarchy":
-      //   return server.prepareCallHierarchy(params)
-      // case "callHierarchy/incomingCalls":
-      //   return server.callHierarchyIncoming(params)
-      // case "callHierarchy/outgoingCalls":
-      //   return server.callHierarchyOutgoing(params)
+      case "textDocument/codeAction":
+        return server.codeAction(params)
+      case "textDocument/semanticTokens/full":
+        return server.semanticTokensFull(params)
+      case "textDocument/prepareCallHierarchy":
+        return server.prepareCallHierarchy(params)
+      case "callHierarchy/incomingCalls":
+        return server.callHierarchyIncoming(params)
+      case "callHierarchy/outgoingCalls":
+        return server.callHierarchyOutgoing(params)
       case "workspace/symbol":
         return server.workspaceSymbol(params)
       default:

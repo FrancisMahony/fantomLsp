@@ -12,6 +12,8 @@ class FantomLanguageServer
   FormattingProvider formattingProvider := FormattingProvider()
   RenameProvider renameProvider := RenameProvider()
   CodeActionProvider codeActionProvider := CodeActionProvider()
+  SemanticTokensProvider semanticTokensProvider := SemanticTokensProvider()
+  CallHierarchyProvider callHierarchyProvider := CallHierarchyProvider()
   SymbolTable symbolTable := SymbolTable()
   TypeResolver typeResolver := TypeResolver()
   ReferenceIndex referenceIndex := ReferenceIndex()
@@ -62,8 +64,8 @@ class FantomLanguageServer
       true,   // rename
       true,   // codeAction
       true,   // workspaceSymbol
-      false,  // semanticTokens
-      false   // callHierarchy
+      true,   // semanticTokens
+      true    // callHierarchy
     )
 
     return [
@@ -78,7 +80,7 @@ class FantomLanguageServer
   Void initialized([Str:Obj?] params)
   {
     Env.cur.err.printLine("[fantomLsp] Server initialized")
-    // workspaceManager.indexWorkspace(symbolTable, typeResolver, referenceIndex)
+    workspaceManager.indexWorkspace(symbolTable, typeResolver, referenceIndex)
   }
 
   Void shutdown()
@@ -287,37 +289,38 @@ class FantomLanguageServer
     context := params["context"] as [Str:Obj?] ?: [Str:Obj?][:]
     doc := docManager.getDocument(uri)
     if (doc == null) return null
-    return codeActionProvider.codeActions(doc, range, context, symbolTable, typeResolver)
+    parseResult := docManager.parseDocument(uri)
+    return codeActionProvider.codeActions(doc, parseResult, range, context)
   }
 
-  // Obj? semanticTokensFull([Str:Obj?] params)
-  // {
-  //   uri := Serialization.extractUri(params)
-  //   doc := docManager.getDocument(uri)
-  //   if (doc == null) return null
-  //   return semanticTokensProvider.provideTokens(doc, symbolTable, typeResolver)
-  // }
+  Obj? semanticTokensFull([Str:Obj?] params)
+  {
+    uri := Serialization.extractUri(params)
+    doc := docManager.getDocument(uri)
+    if (doc == null) return null
+    return semanticTokensProvider.provideTokens(doc, symbolTable, typeResolver)
+  }
 
-  // Obj? prepareCallHierarchy([Str:Obj?] params)
-  // {
-  //   uri := Serialization.extractUri(params)
-  //   pos := Serialization.extractPosition(params)
-  //   doc := docManager.getDocument(uri)
-  //   if (doc == null) return null
-  //   return callHierarchyProvider.prepare(doc, pos, symbolTable)
-  // }
+  Obj? prepareCallHierarchy([Str:Obj?] params)
+  {
+    uri := Serialization.extractUri(params)
+    pos := Serialization.extractPosition(params)
+    doc := docManager.getDocument(uri)
+    if (doc == null) return null
+    return callHierarchyProvider.prepare(doc, pos, symbolTable)
+  }
 
-  // Obj? callHierarchyIncoming([Str:Obj?] params)
-  // {
-  //   item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
-  //   return callHierarchyProvider.incomingCalls(item, symbolTable, referenceIndex)
-  // }
+  Obj? callHierarchyIncoming([Str:Obj?] params)
+  {
+    item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
+    return callHierarchyProvider.incomingCalls(item, symbolTable, referenceIndex)
+  }
 
-  // Obj? callHierarchyOutgoing([Str:Obj?] params)
-  // {
-  //   item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
-  //   return callHierarchyProvider.outgoingCalls(item, symbolTable, referenceIndex)
-  // }
+  Obj? callHierarchyOutgoing([Str:Obj?] params)
+  {
+    item := params["item"] as [Str:Obj?] ?: [Str:Obj?][:]
+    return callHierarchyProvider.outgoingCalls(item, symbolTable, referenceIndex)
+  }
 
   Obj? workspaceSymbol([Str:Obj?] params)
   {
