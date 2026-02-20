@@ -85,20 +85,18 @@ Implemented actions:
 
 ---
 
-### 4. Semantic Tokens — Disabled
+### 4. Semantic Tokens — Complete
 
 **File**: `server/fan/features/SemanticTokensProvider.fan` (106 lines)
-**Status**: Commented out in `FantomLanguageServer.fan` (capability set to `false`, handler commented out)
+**Status**: Enabled and tested
 
-The implementation exists — `provideTokens()` and `addToken()` are written, LSP encoding is in place. It maps AST node kinds to token types (class, method, property, etc.) and encodes modifier bits (static, const, abstract, declaration).
+The implementation is fully enabled. `provideTokens()` and `addToken()` are wired up, LSP encoding is in place. It maps AST node kinds to token types (class, method, property, etc.) and encodes modifier bits (static, const, abstract, declaration).
 
-**Steps to enable**:
-1. Set `semanticTokens: true` in `Serialization.serverCapabilities()` call.
-2. Uncomment `case "textDocument/semanticTokens/full"` in `LspDispatcher.handleRequest`.
-3. Uncomment `semanticTokensFull()` method body in `FantomLanguageServer.fan`.
-4. Smoke-test in VS Code and add `SemanticTokensProviderTest.fan`.
-
-**Risk**: Unknown whether the token type/modifier legend declared to the client matches what the provider emits — needs manual verification.
+**Completed**:
+1. ✅ `semanticTokens: true` in `Serialization.serverCapabilities()` call.
+2. ✅ `case "textDocument/semanticTokens/full"` enabled in `LspDispatcher.handleRequest`.
+3. ✅ `semanticTokensFull()` method body enabled in `FantomLanguageServer.fan`.
+4. ✅ `SemanticTokensProviderTest.fan` added with 13 test methods covering classes, methods, fields, enums, mixins, modifiers, and LSP encoding format.
 
 ---
 
@@ -166,7 +164,7 @@ This line is commented out. Without it, the symbol table only reflects files the
 - [ ] **8. Workspace indexing on startup**: Enable proactive symbol table population
 
 ### Medium Priority (features that are almost there)
-- [ ] **4. Semantic tokens**: Enable the existing implementation
+- [x] **4. Semantic tokens**: Enabled with comprehensive test coverage — done
 - [ ] **5. Call hierarchy (incoming only)**: Enable the existing partial implementation
 - [x] **3. Code actions**: Wired up, add-missing-using, remove-unused-using, uncomment — done
 
