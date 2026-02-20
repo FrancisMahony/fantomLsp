@@ -4,3 +4,7 @@
 /temp/
 /.abacusai/
 .VSCodeCounter/
+client/server/
+client/node_modules/
+client/out/
+client/*.vsix

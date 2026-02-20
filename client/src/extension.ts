@@ -97,7 +97,12 @@ export async function activate(context: ExtensionContext): Promise<void> {
       command: javaExe,
       args: javaArgs,
       options: {
-        env: { ...process.env, FAN_HOME: fanHome },
+        env: {
+          ...process.env,
+          FAN_HOME: fanHome,
+          FAN_ENV: 'util::PathEnv',
+          FAN_ENV_PATH: path.join(context.extensionPath, 'server'),
+        },
       },
       transport: TransportKind.stdio,
     };
@@ -111,7 +116,13 @@ export async function activate(context: ExtensionContext): Promise<void> {
       command: fanExe,
       args: ["fantomLsp::Main"],
       options: {
-        env: { ...process.env, FAN_HOME: fanHome, JAVA_TOOL_OPTIONS: javaOpts },
+        env: {
+          ...process.env,
+          FAN_HOME: fanHome,
+          JAVA_TOOL_OPTIONS: javaOpts,
+          FAN_ENV: 'util::PathEnv',
+          FAN_ENV_PATH: path.join(context.extensionPath, 'server'),
+        },
         shell: isWindows,
       },
       transport: TransportKind.stdio,
