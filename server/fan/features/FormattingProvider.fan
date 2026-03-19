@@ -5,29 +5,65 @@ class FormattingProvider
     tabSize := ((Num?)opts["tabSize"])?.toInt ?: 2
     insertSpaces := opts["insertSpaces"] as Bool ?: true
     indent := insertSpaces ? Str.spaces(tabSize) : "\t"
-    bracketStyle := opts["bracketStyle"] as Str ?: "preserve"
+    bracketStyle := opts["bracketStyle"] as Str ?: "allman"
 
     lines := doc.text.splitLines
     processedLines := normalizeBrackets(lines, bracketStyle)
     result := Str[,]
     depth := 0
 
+    inTripleQuote := false
+    tripleQuoteCol := 0
+
     processedLines.each |line|
     {
       trimmed := line.trim
-      if (trimmed.isEmpty) { result.add(""); return }
+      if (trimmed.isEmpty)
+      {
+        result.add("")
+        return
+      }
 
-      if (trimmed.startsWith("}") || trimmed == "}")
+      // Lines inside a triple-quoted string
+      if (inTripleQuote)
+      {
+        buf := StrBuf()
+        tripleQuoteCol.times { buf.addChar(' ') }
+        buf.add(trimmed)
+        result.add(buf.toStr)
+        closeIdx := findTripleQuote(trimmed, 0)
+        if (closeIdx != null)
+          inTripleQuote = false
+        return
+      }
+
+      if (trimmed.startsWith("}") || trimmed.startsWith("]"))
         depth = (depth - 1).max(0)
 
       buf := StrBuf()
       depth.times { buf.add(indent) }
       buf.add(trimmed)
-      result.add(buf.toStr)
+      formatted := buf.toStr
+      result.add(formatted)
 
       braces := countBracesOutsideStrings(trimmed)
-      closesAdj := trimmed.startsWith("}") ? (braces["closes"] - 1).max(0) : braces["closes"]
+      closesAdj := braces["closes"]
+      if (trimmed.startsWith("}") || trimmed.startsWith("]"))
+        closesAdj = (closesAdj - 1).max(0)
       depth = (depth + braces["opens"] - closesAdj).max(0)
+
+      // Check if this line opens a triple-quoted string
+      openIdx := findTripleQuote(formatted, 0)
+      if (openIdx != null)
+      {
+        // Check for closing triple-quote on the same line
+        closeIdx := findTripleQuote(formatted, openIdx + 3)
+        if (closeIdx == null)
+        {
+          inTripleQuote = true
+          tripleQuoteCol = openIdx + 3
+        }
+      }
     }
 
     formatted := result.join("\n")
@@ -37,8 +73,6 @@ class FormattingProvider
 
   private Str[] normalizeBrackets(Str[] lines, Str style)
   {
-    if (style == "preserve") return lines
-
     result := Str[,]
     i := 0
     while (i < lines.size)
@@ -102,14 +136,38 @@ class FormattingProvider
   private Bool isInString(Str line)
   {
     inStr := false
+    inTriple := false
     escaped := false
-    line.each |ch|
+    i := 0
+    while (i < line.size)
     {
-      if (escaped) { escaped = false; return }
-      if (ch == '\\') { escaped = true; return }
-      if (ch == '"') inStr = !inStr
+      ch := line[i]
+      if (inTriple)
+      {
+        if (i + 2 < line.size && ch == '"' && line[i+1] == '"' && line[i+2] == '"')
+        {
+          inTriple = false
+          i += 3
+          continue
+        }
+        i++
+        continue
+      }
+      if (escaped) { escaped = false; i++; continue }
+      if (ch == '\\') { escaped = true; i++; continue }
+      if (ch == '"')
+      {
+        if (i + 2 < line.size && line[i+1] == '"' && line[i+2] == '"')
+        {
+          inTriple = true
+          i += 3
+          continue
+        }
+        inStr = !inStr
+      }
+      i++
     }
-    return inStr
+    return inStr || inTriple
   }
 
   private [Str:Int] countBracesOutsideStrings(Str line)
@@ -117,16 +175,58 @@ class FormattingProvider
     opens := 0
     closes := 0
     inStr := false
+    inTriple := false
     escaped := false
-    line.each |ch|
+    i := 0
+    while (i < line.size)
     {
-      if (escaped) { escaped = false; return }
-      if (ch == '\\') { escaped = true; return }
-      if (ch == '"') { inStr = !inStr; return }
-      if (inStr) return
-      if (ch == '{') opens++
-      else if (ch == '}') closes++
+      ch := line[i]
+      if (inTriple)
+      {
+        if (i + 2 < line.size && ch == '"' && line[i+1] == '"' && line[i+2] == '"')
+        {
+          inTriple = false
+          i += 3
+          continue
+        }
+        i++
+        continue
+      }
+      if (escaped) { escaped = false; i++; continue }
+      if (ch == '\\') { escaped = true; i++; continue }
+      if (ch == '"')
+      {
+        if (i + 2 < line.size && line[i+1] == '"' && line[i+2] == '"')
+        {
+          inTriple = true
+          i += 3
+          continue
+        }
+        inStr = !inStr
+        i++
+        continue
+      }
+      if (!inStr)
+      {
+        if (ch == '{' || ch == '[') opens++
+        else if (ch == '}' || ch == ']') closes++
+      }
+      i++
     }
     return ["opens": opens, "closes": closes]
+  }
+
+  ** Find the index of the first triple-quote starting at or after 'from'.
+  ** Returns null if not found.
+  private Int? findTripleQuote(Str line, Int from)
+  {
+    i := from
+    while (i + 2 < line.size)
+    {
+      if (line[i] == '"' && line[i+1] == '"' && line[i+2] == '"')
+        return i
+      i++
+    }
+    return null
   }
 }

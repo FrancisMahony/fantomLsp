@@ -1,113 +1,97 @@
 # Fantom Language Support
 
-A full-featured Language Server Protocol (LSP) implementation for the [Fantom programming language](https://fantom.org), with a VS Code client extension.
-
-```
-┌──────────────────┐       stdio / JSON-RPC       ┌──────────────────┐
-│  VS Code Client  │ ◄══════════════════════════► │ Fantom LS Server │
-│  (TypeScript)    │   Content-Length + JSON       │ (Fantom on JVM)  │
-└──────────────────┘                               └──────────────────┘
-```
+Rich language support for [Fantom](https://fantom.org) in Visual Studio Code, powered by a full Language Server Protocol implementation.
 
 ## Features
 
-| Feature | Details |
-|---------|---------|
-| **Diagnostics** | Structural errors from the recovering parser + full compiler errors on save. Cross-file refresh. Resolves `@{macro}` deps from `etc/build/config.props`. |
-| **Hover** | Type signatures, doc comments, slot details for types and slots from local code and compiled pods. |
-| **Completion** | Keywords, pod names on `using` lines, dot-completion on typed expressions, local type and method names. |
-| **Signature Help** | Parameter hints with active-parameter highlighting as you type. |
-| **Go to Definition** | Jumps to definitions across all files in the workspace. |
-| **Find References** | Finds all usages of a type or slot — in field declarations, method signatures, and method bodies. |
-| **Rename Symbol** | Renames types, fields, and methods across the workspace including usages inside method bodies. |
-| **Document Symbols** | Outline view and breadcrumb navigation for the current file. |
-| **Workspace Symbol Search** | `Ctrl+T` fuzzy search across all symbols in all open workspace files. |
-| **Code Actions** | Add missing `using`, remove unused `using`, uncomment a `//` line. |
-| **Code Formatting** | Full-file formatting with configurable bracket style (preserve / K&R / Allman). |
-| **Semantic Tokens** | Syntax highlighting for classes, methods, fields, enums, mixins, and modifiers. |
-| **Call Hierarchy** | Prepare, incoming calls, and outgoing calls for methods and constructors. |
+### Code Intelligence
 
-## Requirements
+- **Hover** -- type signatures, documentation, and constructor details for types and slots from your code and compiled pods.
+- **Go to Definition** -- jump to the definition of any type, field, or method across your workspace.
+- **Find References** -- locate every usage of a symbol throughout the project.
+- **Rename Symbol** -- rename types, fields, and methods across all files at once.
+- **Call Hierarchy** -- browse incoming and outgoing calls for any method or constructor.
 
-- Fantom 1.0 or later **or** a [SkySpark](https://skyfoundry.com/product) installation — either is accepted. Set `fantom.home` (or `FAN_HOME`) to the installation root.
-- Java 11+ (required by Fantom/SkySpark)
-- VS Code 1.75+
+### Editing
 
-## Installation
+- **Completion** -- context-aware autocomplete: pod names in `using` statements, dot-completion on receivers, keywords, local variables, and types. Method snippets include parameter placeholders.
+- **Signature Help** -- parameter hints while typing function calls, with the active parameter highlighted.
+- **Code Actions** -- quick fixes including *Add missing using*, *Remove unused using*, and *Uncomment line*.
 
-### 1. Build the server pod
+### Navigation
 
-```bash
-cd server
-fan build.fan
-```
+- **Document Symbols** -- outline and breadcrumb navigation for the current file.
+- **Workspace Symbol Search** -- `Ctrl+T` fuzzy search across all indexed symbols.
 
-This compiles `fantomLsp.pod` into your Fantom installation's `lib/fan/` directory.
+### Diagnostics
 
-### 2. Build the VS Code extension
+- **Real-time parser errors** on every keystroke.
+- **Compiler diagnostics** on save, with automatic cross-file refresh.
 
-```bash
-cd client
-npm install
-npm run compile
-```
+### Formatting
 
-### 3. Load the extension in VS Code
+- Full-file code formatting with **Allman** (default) or **K&R** bracket style.
+- Correctly handles triple-quoted multiline strings and list literal indentation.
+- Respects your editor tab size and spaces/tabs preference.
 
-Open the repo root in VS Code and press `F5` to launch an Extension Development Host, or package it with `vsce package` and install the `.vsix`.
+### Syntax Highlighting
 
-## Configuration
+- Semantic token support that goes beyond the bundled TextMate grammar, distinguishing classes, methods, fields, enums, and mixins with modifiers like `declaration`, `readonly`, `static`, and `abstract`.
+
+## Getting Started
+
+### Prerequisites
+
+- **Java 11+** on your `PATH`.
+- **Fantom** or **[SkySpark](https://skyfoundry.com/product)** installed locally.
+
+### Setup
+
+1. Install the extension from the Marketplace.
+2. Open **Settings** (`Ctrl+,`) and set `fantom.home` to your Fantom or SkySpark installation directory (e.g. `C:\Skyspark\skyspark-4.0.5`). If you already have the `FAN_HOME` environment variable set, you can skip this step.
+3. Open a `.fan` file. The language server starts automatically.
+
+## Settings
 
 | Setting | Default | Description |
-|---------|---------|-------------|
-| `fantom.home` | `""` | Path to Fantom/SkySpark installation root (`FAN_HOME`). Falls back to the `FAN_HOME` environment variable. |
-| `fantom.javaOpts` | `"-Xmx1024m"` | JVM options passed to the language server process. |
-| `fantom.formatting.bracketStyle` | `"preserve"` | Bracket style for formatting: `preserve`, `k&r`, or `allman`. |
-| `fantom.trace.server` | `"off"` | LSP message tracing: `off`, `messages`, or `verbose`. |
+|---|---|---|
+| `fantom.home` | `""` | Path to the Fantom / SkySpark installation directory. Falls back to the `FAN_HOME` environment variable. |
+| `fantom.javaOpts` | `"-Xmx1024m"` | JVM options for the language server. Increase `-Xmx` for large codebases. |
+| `fantom.formatting.bracketStyle` | `"allman"` | `"allman"` places braces on a new line. `"k&r"` places braces on the same line. |
+| `fantom.trace.server` | `"off"` | LSP message tracing for debugging: `"off"`, `"messages"`, or `"verbose"`. |
 
-## Project Structure
+## Troubleshooting
 
-```
-fantomLsp/
-├── client/                          # VS Code extension (TypeScript)
-│   ├── src/extension.ts             # Spawns server, wires LSP client
-│   ├── syntaxes/fantom.tmLanguage.json  # TextMate grammar
-│   └── language-configuration.json  # Brackets, comments, auto-close
-│
-├── server/                          # Fantom LSP server pod
-│   ├── build.fan                    # BuildPod script
-│   ├── fan/
-│   │   ├── protocol/                # JSON-RPC framing, LSP message types, dispatcher
-│   │   ├── server/                  # FantomLanguageServer, TextDocumentManager, WorkspaceManager
-│   │   ├── parser/                  # Error-recovering parser, partial AST
-│   │   ├── analysis/                # SymbolTable, TypeResolver, ReferenceIndex
-│   │   └── features/                # One provider class per LSP feature
-│   └── test/                        # Unit tests
-│
-└── scripts/                         # build.bat / build.sh
-```
+### The extension does not start
 
-## Running Tests
+1. Verify `fantom.home` points to a valid installation containing `lib/java/sys.jar`.
+2. Confirm Java is available: run `java -version` in a terminal.
+3. Check the **Fantom LSP Launch** output channel (`View > Output`, then select **Fantom LSP Launch**) for the exact command that was attempted.
 
-```bash
-cd server
-fant fantomLsp
-```
+### No completions or hover information
 
-Tests run via Fantom's built-in `fant` runner. The suite covers all providers, the parser, serialization, and analysis layers (~300 tests).
+- Wait a few seconds after opening a `.fan` file for workspace indexing to finish.
+- For large projects, increase memory: set `fantom.javaOpts` to `"-Xmx2048m"` or higher.
+- Check the **Fantom Language Server** output channel for errors.
 
-## Architecture
+### Diagnostics are missing or stale
 
-The server is written in Fantom for direct access to the `compiler` pod (AST, parser, type resolution) and the `sys` reflection API (`Type`, `Slot`, `Pod`). This means hover info, completion candidates, and go-to-definition for any compiled Fantom pod work with zero extra effort.
+- Compiler diagnostics refresh on **save**. Parser diagnostics update on every keystroke.
 
-The VS Code client is ~100 lines of TypeScript boilerplate that spawns the server process over stdio and delegates everything to `vscode-languageclient`.
+### Formatting produces unexpected results
 
-The server is editor-agnostic — it speaks standard LSP over stdio and can be used with Neovim, Emacs, Helix, or any other LSP-compatible editor.
+- Check that `fantom.formatting.bracketStyle` matches your preference.
+- The formatter uses your editor's **Tab Size** and **Insert Spaces** settings.
 
-## Known Limitation
+### High memory usage or crashes
 
-**Local variable and parameter tracking is not implemented.** Rename and Find References work for types, fields, and methods but not for local variables or method parameters declared inside method bodies. This requires scope-aware parsing of method body contents and has a poor effort-to-value ratio given that locals are typically short-lived and renamed manually with ease.
+- Increase the heap: set `fantom.javaOpts` to `"-Xmx2048m"`.
+- Enable `fantom.trace.server` at `"verbose"` to capture logs, then file an issue.
+
+## Known Limitations
+
+- **Rename** and **Find References** work for types, fields, and methods but not for local variables or method parameters.
 
 ## License
 
-Academic Free License v3.0 — see [AFL-3.0](https://opensource.org/licenses/AFL-3.0).
+[AFL-3.0](https://opensource.org/licenses/AFL-3.0)

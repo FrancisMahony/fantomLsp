@@ -37,9 +37,12 @@ class RecoveringParser
     openBraces := Int[,]
     openParens := Int[,]
     openBrackets := Int[,]
+    inTripleStr := false
+    inBlockComment := false
 
-    lines.each |line, lineNum|
+    for (lineNum := 0; lineNum < lines.size; lineNum++)
     {
+      line := lines[lineNum]
       inString := false
       escaped := false
       i := 0
@@ -47,6 +50,36 @@ class RecoveringParser
       while (i < line.size)
       {
         ch := line[i]
+
+        // Inside a block comment, scan for closing */
+        if (inBlockComment)
+        {
+          if (ch == '*' && i + 1 < line.size && line[i+1] == '/')
+          {
+            inBlockComment = false
+            i += 2
+          }
+          else
+          {
+            i++
+          }
+          continue
+        }
+
+        // Inside a triple-quoted string, scan for closing """
+        if (inTripleStr)
+        {
+          if (ch == '"' && i + 2 < line.size && line[i+1] == '"' && line[i+2] == '"')
+          {
+            inTripleStr = false
+            i += 3
+          }
+          else
+          {
+            i++
+          }
+          continue
+        }
 
         if (escaped)
         {
@@ -71,6 +104,14 @@ class RecoveringParser
           continue
         }
 
+        // Check for triple-quoted string opening
+        if (ch == '"' && !inString && i + 2 < line.size && line[i+1] == '"' && line[i+2] == '"')
+        {
+          inTripleStr = true
+          i += 3
+          continue
+        }
+
         if (ch == '"')
         {
           inString = !inString
@@ -84,8 +125,17 @@ class RecoveringParser
           continue
         }
 
+        // Line comment — skip rest of line
         if (ch == '/' && i + 1 < line.size && line[i + 1] == '/')
           break
+
+        // Block comment opening
+        if (ch == '/' && i + 1 < line.size && line[i + 1] == '*')
+        {
+          inBlockComment = true
+          i += 2
+          continue
+        }
 
         if (ch == '{')
           openBraces.push(lineNum)

@@ -6,7 +6,7 @@ class Build : BuildPod
   {
     podName = "fantomLsp"
     summary = "Fantom Language Server Protocol implementation"
-    version = Version("0.5.0")
+    version = Version("0.1.1")
     depends = [
       "sys 1.0",
       "util 1.0",
@@ -23,5 +23,19 @@ class Build : BuildPod
       `fan/features/`,
       `test/`,
     ]
+  }
+
+  @Target { help = "Build pod and copy to server/lib/fan/ for PathEnv" }
+  override Void compile()
+  {
+    super.compile
+
+    // Copy built pod to server/lib/fan/ so PathEnv finds it
+    builtPod := Env.cur.homeDir + `lib/fan/${podName}.pod`
+    localLib := scriptDir + `lib/fan/`
+    localLib.create
+    localPod := localLib + `${podName}.pod`
+    builtPod.copyTo(localPod, ["overwrite": true])
+    log.info("Copied pod to $localPod")
   }
 }

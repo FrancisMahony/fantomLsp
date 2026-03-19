@@ -2,14 +2,28 @@
   "name": "fantom-lsp",
   "displayName": "Fantom Language Support",
   "description": "Language server protocol support for the Fantom programming language",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "fantom-lsp",
   "license": "AFL-3.0",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "keywords": [
+    "fantom",
+    "fan",
+    "skyspark",
+    "lsp",
+    "language server"
+  ],
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters",
+    "Formatters"
   ],
   "activationEvents": [
     "onLanguage:fantom"
@@ -66,15 +80,13 @@
         "fantom.formatting.bracketStyle": {
           "type": "string",
           "enum": [
-            "preserve",
-            "k&r",
-            "allman"
+            "allman",
+            "k&r"
           ],
-          "default": "preserve",
+          "default": "allman",
           "enumDescriptions": [
-            "Keep existing bracket style",
-            "K&R style - braces on same line (e.g., class Foo {)",
-            "Allman style - braces on new line (e.g., class Foo\\n{)"
+            "Allman style - braces on new line (e.g., class Foo\\n{)",
+            "K&R style - braces on same line (e.g., class Foo {)"
           ],
           "description": "Bracket style to use when formatting code."
         }

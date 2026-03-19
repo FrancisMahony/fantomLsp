@@ -20,7 +20,7 @@ class FantomLanguageServer
 
   Bool isShutdown := false
   Str[]? workspaceFolders
-  Str bracketStyle := "preserve"
+  Str bracketStyle := "allman"
 
   new make()
   {

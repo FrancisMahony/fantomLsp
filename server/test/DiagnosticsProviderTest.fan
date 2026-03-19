@@ -96,6 +96,77 @@ class DiagnosticsProviderTest : Test
     verifyEq(diags.size, 0)
   }
 
+  Void testTripleQuoteStringClosingOnSameLineAsParenNoDiagnostics()
+  {
+    // Closing """ followed by ) on the same line must not report unclosed paren
+    src :=
+      "class Foo
+       {
+         Void bar()
+         {
+           eval(\"\"\"do
+                   x := 1 + (2 * 3)
+                   end\"\"\")
+         }
+       }"
+    result := parse(src)
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
+  }
+
+  Void testTripleQuoteSingleLineNoDiagnostics()
+  {
+    // Triple-quoted string that opens and closes on the same line
+    src :=
+      "class Foo
+       {
+         Void bar()
+         {
+           x := eval(\"\"\"read(point and dis==\\\"My Point\\\")\"\"\")
+         }
+       }"
+    result := parse(src)
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
+  }
+
+  Void testBlockCommentWithParensNoDiagnostics()
+  {
+    // Parens and braces inside /* */ block comments must be ignored
+    src :=
+      "class Foo
+       {
+         Void bar() { }
+         /*
+         Void commented(Str x) {
+           doSomething(
+         }
+         */
+       }"
+    result := parse(src)
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
+  }
+
+  Void testMultipleTripleQuoteStringsNoDiagnostics()
+  {
+    // Multiple triple-quoted strings in sequence
+    src :=
+      "class Foo
+       {
+         Void bar()
+         {
+           eval(\"\"\"commit(diff(null, {site, dis:\\\"S1\\\"}, {add}))\"\"\")
+           eval(\"\"\"do
+                   x := read(point)
+                   end\"\"\")
+         }
+       }"
+    result := parse(src)
+    diags := provider.computeDiagnostics("file:///test.fan", result)
+    verifyEq(diags.size, 0)
+  }
+
   Void testComplexValidCodeProducesNoDiagnostics()
   {
     src :=
