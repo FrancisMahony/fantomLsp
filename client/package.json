@@ -4,7 +4,15 @@
   "description": "Language server protocol support for the Fantom programming language",
   "version": "0.3.0",
   "publisher": "NV5-FrancisMahony",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FrancisMahony/fantomLsp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/FrancisMahony/fantomLsp/issues"
+  },
+  "homepage": "https://github.com/FrancisMahony/fantomLsp#readme",
   "icon": "icon.png",
   "keywords": [
     "fantom",
@@ -70,13 +78,13 @@
         "fantom.home": {
           "type": "string",
           "default": "",
-          "description": "Path to Fantom installation directory (FAN_HOME). If empty, the extension will check the FAN_HOME environment variable and PATH."
+          "description": "Path to the Fantom or SkySpark installation directory. If empty, the FAN_HOME environment variable is used. Changing this requires reloading the window."
         },
         "fantom.envPath": {
           "type": "array",
           "items": { "type": "string" },
           "default": [],
-          "description": "Absolute Fantom environment root directories containing lib/fan pods (relative paths are ignored). Used only for file-backed workspace lookup, together with current workspace auto-detection, never added to JVM FAN_ENV_PATH. Changes apply to server lookups immediately."
+          "description": "Additional absolute root directories whose lib/fan folder contains your built workspace pods (add the folder containing lib, not lib/fan). These take priority over pods in the Fantom installation. Each workspace folder and its three nearest parent folders are detected automatically. Relative paths are ignored. Changes apply without a restart."
         },
         "fantom.trace.server": {
           "type": "string",
@@ -97,7 +105,7 @@
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "description": "Maximum number of .fan files to index. 0 means no limit (use fantom.javaOpts heap for large trees)."
+          "description": "Maximum number of .fan files to index per pod. 0 means no limit (use fantom.javaOpts heap for large trees)."
         },
         "fantom.codeLens.enabled": {
           "type": "boolean",

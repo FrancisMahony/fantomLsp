@@ -89,7 +89,7 @@ class SymbolTableTest : Test
     }
   }
 
-  ** T13: the name index returns exactly the full-scan match set
+  ** The name index returns exactly the full-scan match set
   ** (entry.name OR node.name) through update/replace/remove.
   Void testFindAllByNameIndexMatchesFullScan()
   {

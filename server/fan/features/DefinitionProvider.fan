@@ -32,7 +32,7 @@ class DefinitionProvider : LspUtils
     locs := Location[,]
     // One request-scoped heritage index. Previously every candidate rescanned
     // the whole symbol table and recomputed podForFile per entry: O(types x
-    // entries) registry lookups, ~110s for 300 generated classes (A7).
+    // entries) registry lookups, ~110s for 300 generated classes.
     index := HeritageIndex(server)
     res.targets.each |target|
     {

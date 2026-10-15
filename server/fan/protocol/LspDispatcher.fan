@@ -18,7 +18,7 @@ class LspDispatcher
   }
 
   ** Main thread only. Background results are applied before every message
-  ** (plan 7.3), so handlers always see the latest drained state.
+  ** so handlers always see the latest drained state.
   [Str:Obj?]? dispatch([Str:Obj?] msg)
   {
     try

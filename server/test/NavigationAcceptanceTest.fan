@@ -1,7 +1,7 @@
 using concurrent
 
-** T12 product acceptance through JSON-RPC, not provider or snapshot fixtures.
-** Dependency pods are built only in TestWorkspace's private lib/fan (D6).
+** Protocol acceptance through JSON-RPC, not provider or snapshot fixtures.
+** Dependency pods are built only in TestWorkspace's private lib/fan.
 class NavigationAcceptanceTest : Test
 {
   private TestWorkspace? ws
@@ -289,7 +289,7 @@ class NavigationAcceptanceTest : Test
     installedHover := request("textDocument/hover", installed) as [Str:Obj?]
     verifyNotNull(installedHover, "installed hover remains available even without source")
     verify((installedHover["contents"] as [Str:Obj?])["value"].toStr.contains("size"))
-    // D6: fixture dependency builds must never become JVM-loaded pods.
+    // Fixture dependency builds must never become JVM-loaded pods.
     verifyFalse(Pod.list.any |pod| { pod.name == alpha || pod.name == beta })
   }
 
@@ -410,7 +410,7 @@ class NavigationAcceptanceTest : Test
     verifyEq((request("textDocument/codeLens", ["textDocument": ["uri": alphaUri]]) as List).size, 0)
   }
 
-  ** T02's 300-file/500-message intent extended to every migrated feature plus
+  ** The 300-file/500-message stress scenario extended to every migrated feature plus
   ** completion/tokens. No fabricated lens or hierarchy item, no direct calls.
   Void testA7FullFeatureConcurrencyStress()
   {
@@ -444,7 +444,7 @@ class NavigationAcceptanceTest : Test
     compileBefore := server.semanticCompileCount
     500.times |n|
     {
-      if (n % 50 == 0) Env.cur.err.printLine("[T12 mixed stress] progress=$n")
+      if (n % 50 == 0) Env.cur.err.printLine("[mixed stress] progress=$n")
       // Do not let the initial client pacing consume a whole index generation
       // before the first dispatch. Subsequent pacing permits real producers.
       if (n > 0) Actor.sleep(3ms)
@@ -519,7 +519,7 @@ class NavigationAcceptanceTest : Test
           }
         }
         elapsed := Duration.now - began
-        if (elapsed > 500ms) Env.cur.err.printLine("[T12 mixed stress] slow n=$n method=$method duration=$elapsed")
+        if (elapsed > 500ms) Env.cur.err.printLine("[mixed stress] slow n=$n method=$method duration=$elapsed")
         verify(elapsed < 30sec,
           "mixed stress cannot finish its 500 messages: n=$n method=$method duration=$elapsed responses=$responses refusals=$expectedRefusals notifications=$notifications counts=$requests indexApplies=$indexApplies snapshotApplies=$snapshotApplies activeCompileDispatches=$activeCompileDispatches")
       }
@@ -541,7 +541,7 @@ class NavigationAcceptanceTest : Test
     verify(activeCompileDispatches > 0, "no dispatch overlapped real compiler work")
     verifyNotNull(server.semanticSnapshots[stressBuild], "generated pod must compile during the mixed loop")
     verify(server.awaitBackground(60sec))
-    Env.cur.err.printLine("[T12 mixed stress] messages=500 responses=$responses success=${responses-expectedRefusals} expectedRefusals=$expectedRefusals notifications=$notifications methods=$requests indexApplies=$indexApplies snapshotApplies=$snapshotApplies activeCompileDispatches=$activeCompileDispatches compiles=${server.semanticCompileCount-compileBefore}")
+    Env.cur.err.printLine("[mixed stress] messages=500 responses=$responses success=${responses-expectedRefusals} expectedRefusals=$expectedRefusals notifications=$notifications methods=$requests indexApplies=$indexApplies snapshotApplies=$snapshotApplies activeCompileDispatches=$activeCompileDispatches compiles=${server.semanticCompileCount-compileBefore}")
   }
 
   Void testA8EncodedUriRoundTripWithoutDuplicateIndexing()

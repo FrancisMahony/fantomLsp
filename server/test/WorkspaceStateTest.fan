@@ -2,7 +2,7 @@ using concurrent
 using util
 
 **
-** T02: main-thread state ownership, mailbox, generations, diagnostics cache
+** Main-thread state ownership, mailbox, generations, diagnostics cache
 ** merge, single outgoing path, idle polling and document lifecycle.
 **
 class WorkspaceStateTest : Test

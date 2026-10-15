@@ -1,4 +1,6 @@
 @echo off
+rem Builds the server pod, bundles it into the client, compiles the client and
+rem packages the VSIX. Requires fan, node/npm and FAN_HOME (or fan on PATH).
 setlocal
 
 set SCRIPT_DIR=%~dp0
@@ -18,6 +20,7 @@ echo Copied fantomLsp.pod to client\server\lib\fan\
 echo === Building VS Code Client ===
 cd /d "%ROOT_DIR%\client"
 call npm install
+if errorlevel 1 goto :error
 call npm run compile
 if errorlevel 1 goto :error
 
@@ -27,7 +30,7 @@ copy /Y "%ROOT_DIR%\CHANGELOG.md" "%ROOT_DIR%\client\CHANGELOG.md"
 copy /Y "%ROOT_DIR%\LICENSE" "%ROOT_DIR%\client\LICENSE"
 
 cd /d "%ROOT_DIR%\client"
-    call npx --yes @vscode/vsce package --allow-missing-repository
+call npx --yes @vscode/vsce package
 if errorlevel 1 (
     del /Q README.md CHANGELOG.md LICENSE 2>nul
     goto :error

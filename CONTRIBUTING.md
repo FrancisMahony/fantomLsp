@@ -1,43 +1,32 @@
 # Contributing
 
-## Architecture
+This guide covers building, running and testing the extension. For how the server works internally, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-```
-┌──────────────────┐       stdio / JSON-RPC       ┌──────────────────┐
-│  VS Code Client  │ <=============================> │ Fantom LS Server │
-│  (TypeScript)    │   Content-Length + JSON       │ (Fantom on JVM)  │
-└──────────────────┘                               └──────────────────┘
-```
-
-The server is written in Fantom for direct access to the `compiler` pod (AST, parser, type resolution) and the `sys` reflection API (`Type`, `Slot`, `Pod`). This means hover, completion, and go-to-definition for any compiled Fantom pod work with zero extra configuration.
-
-The VS Code client is a lightweight TypeScript wrapper that spawns the server process over stdio and delegates everything to `vscode-languageclient`.
-
-The server is editor-agnostic -- it speaks standard LSP over stdio and can be adapted for Neovim, Emacs, Helix, or any other LSP-compatible editor.
-
-## Project Structure
+## Repository layout
 
 ```
 fantomLsp/
-├── client/                              # VS Code extension (TypeScript)
-│   ├── src/extension.ts                 # Spawns server, wires LSP client
-│   ├── syntaxes/fantom.tmLanguage.json  # TextMate grammar
-│   └── language-configuration.json      # Brackets, comments, auto-close
-│
-├── server/                              # Fantom LSP server pod
-│   ├── build.fan                        # BuildPod script
-│   ├── fan/
-│   │   ├── protocol/                    # JSON-RPC framing, LSP message types, dispatcher
-│   │   ├── server/                      # FantomLanguageServer, TextDocumentManager, WorkspaceManager
-│   │   ├── parser/                      # Error-recovering parser, partial AST
-│   │   ├── analysis/                    # SymbolTable, TypeResolver, ReferenceIndex
-│   │   └── features/                    # One provider per LSP feature (hover, definition, completion, rename, diagnostics, formatting, semantic tokens, call hierarchy, highlights, folding, inlay hints, …)
-│   └── test/                            # Unit tests
-│
-└── scripts/                             # build.bat / build.sh
+├── client/                 VS Code extension (TypeScript)
+│   ├── src/extension.ts    Locates Fantom, launches the server, wires the LSP client
+│   ├── syntaxes/           TextMate grammar
+│   └── package.json        Extension manifest and settings
+├── server/                 Language server (Fantom pod "fantomLsp")
+│   ├── build.fan
+│   ├── fan/                Server source (protocol, server, parser, analysis, features)
+│   └── test/               Tests (compiled into the pod)
+├── scripts/                build.bat / build.sh: build server + client and package the VSIX
+└── docs/                   Architecture and release notes for maintainers
 ```
 
-## Building from Source
+## Prerequisites
+
+| Tool | Notes |
+|---|---|
+| Java 11+ | Runs `fan` and the server. |
+| Fantom or SkySpark | `FAN_HOME` set, with `fan` and `fant` on `PATH`. |
+| Node.js 18+ and npm | Builds the client. |
+
+## Building
 
 ### Server
 
@@ -46,35 +35,86 @@ cd server
 fan build.fan
 ```
 
-This compiles `fantomLsp.pod` into your Fantom installation's `lib/fan/` directory.
+This installs `fantomLsp.pod` into `$FAN_HOME/lib/fan/` and copies it to `server/lib/fan/`. Both are build outputs and are not committed.
 
 ### Client
 
 ```bash
 cd client
 npm install
-npm run compile
+npm run compile          # bundle to client/out/
+npx tsc --noEmit -p .    # type-check
 ```
 
-### Running in Development
+### Everything, including the VSIX
 
-Open the repo root in VS Code and press `F5` to launch an Extension Development Host.
+```bash
+scripts/build.sh         # macOS / Linux
+scripts\build.bat        # Windows
+```
 
-### Packaging / publish
+Both scripts build the server and copy the pod into `client/server/lib/fan/` (the extension loads it from there). They then compile the client and produce `client/fantom-lsp-<version>.vsix`.
 
-See [PUBLISH.md](PUBLISH.md). On Windows, prefer `scripts\build.bat` so the pod is copied into the VSIX.
+## Running in development
 
-Pre-release checklist: [RELEASE.md](RELEASE.md).
+1. Build the server, then copy the pod into the client so the extension loads your build:
+   ```bash
+   cd server && fan build.fan
+   mkdir -p ../client/server/lib/fan && cp lib/fan/fantomLsp.pod ../client/server/lib/fan/
+   ```
+   On Windows, `copy server\lib\fan\fantomLsp.pod client\server\lib\fan\` does the same. Running the build script also works.
+2. Open the repository root in VS Code and press **F5** (**Run Fantom LSP Extension**). An Extension Development Host window opens with the extension loaded from `client/`.
+3. After changing server code, rebuild, copy the pod again, and click **Fantom LS** in the status bar to restart the server. Launch settings (`fantom.home`, `fantom.javaOpts`, `fantom.maxFiles`, `fantom.excludeDirs`) are read once at activation; reload the window to apply changes to them.
 
-## Running Tests
+Logs:
+- **Fantom LSP Launch**: how the server was launched (installation, Java, lookup roots).
+- **Fantom Language Server**: server output and, when `fantom.trace.server` is enabled, LSP traffic.
+
+## Testing
+
+Tests live in `server/test/` and are compiled into the pod, so **always rebuild before testing**:
 
 ```bash
 cd server
-fant fantomLsp
+fan build.fan
+fant fantomLsp                      # full suite (a few minutes)
+fant fantomLsp::RenameProviderTest  # one test class
+fant fantomLsp::RenameProviderTest.testLocalRenameOnlyM1AndClientUri   # one test method
 ```
 
-Tests run via Fantom's built-in `fant` runner. The suite covers all providers, the parser, serialization, and analysis layers.
+Tests that need the real compiler create temporary pods under `Env.cur.tempDir` and delete them afterwards. They never install anything into `FAN_HOME`.
+
+`NavigationAcceptanceTest` drives the server end-to-end over JSON-RPC. The concurrency and performance tests (`ConcurrencyStressTest`, `ResolverPerformanceTest`) enforce responsiveness under load. If one of them fails intermittently, treat it as a real bug.
+
+### Optional real-workspace test
+
+`InteractiveRecoveryTest` replays a sustained interactive session against a real workspace. It's a maintainer tool: the fixture file must contain the identifiers listed in the test's `spots` table, and the test fails fast if it doesn't. It's skipped unless you opt in:
+
+| Variable | Meaning |
+|---|---|
+| `FANTOM_LSP_RECOVERY_ROOT` | Workspace directory to index. |
+| `FANTOM_LSP_RECOVERY_FILE` | A `.fan` file inside that workspace to exercise. |
+| `FANTOM_LSP_RECOVERY_POD` | Optional. Pod name for code-lens keys; defaults to the nearest `build.fan`. |
+
+## Guidelines
+
+- **Threading.** All mutable analysis state belongs to the main dispatch thread. Background actors may only take immutable inputs and post immutable results to the mailbox. See the threading section of [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- **No guessing.** Navigation features must go through `SymbolResolver`. Return a `proven` result only when the compiler (or a declaration or local under the cursor) proves it. Otherwise return a ranked list or nothing.
+- **Tests with fixes.** Every bug fix needs a regression test. Run the full suite before submitting.
+- **Comments.** Explain *why* code is the way it is, in terms that make sense without outside context.
+- **Changelog.** Add user-visible changes to [CHANGELOG.md](CHANGELOG.md).
+
+## Reporting issues
+
+Open an issue at <https://github.com/FrancisMahony/fantomLsp/issues>. Include:
+- your Fantom/SkySpark and VS Code versions;
+- the **Fantom LSP Launch** output;
+- the **Fantom Language Server** output, captured with `fantom.trace.server` set to `"verbose"`.
+
+## Releasing
+
+See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 
-Free to use. Source code is proprietary. See [LICENSE](LICENSE) for details.
+This project is licensed under the [MIT License](LICENSE). By submitting a contribution, you agree that it is licensed under the same terms.

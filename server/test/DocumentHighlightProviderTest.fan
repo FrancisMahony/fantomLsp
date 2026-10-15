@@ -40,7 +40,7 @@ class DocumentHighlightProviderTest : Test
     verifyNull(LinkedEditingRangeProvider().ranges(f.doc, f.at("close", 3), f.server))
   }
 
-  ** T13: the file-scoped audit returns exactly the same-file subset of the
+  ** The file-scoped audit returns exactly the same-file subset of the
   ** whole-workspace references (slot, installed sys type, local, dyn),
   ** for fresh and edited buffers, and empty for non-candidate files.
   Void testFileScopedReferencesEqualWorkspaceFilter()
@@ -151,7 +151,7 @@ class DocumentHighlightProviderTest : Test
     verifyEq(actual.size, count, "$key file=$file decl=$decl")
   }
 
-  ** T13: highlight goes through the production dispatcher with the actual
+  ** Highlight goes through the production dispatcher with the actual
   ** request ID; a pending cancel yields a null result, not an error.
   Void testHighlightAndLinkedEditingCancelWithActualId()
   {

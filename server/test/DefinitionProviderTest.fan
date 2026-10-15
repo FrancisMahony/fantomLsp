@@ -105,7 +105,7 @@ class DefinitionProviderTest : Test
     verifyLocation(slots[1], dir + `fan/C.fan`, 7)
   }
 
-  ** A7 regression: 300 unrelated generated types must not make implementation
+  ** Performance regression: 300 unrelated generated types must not make implementation
   ** quadratic in index size, while transitive inheritance stays exact.
   Void testImplementationScalesWithManyUnrelatedTypes()
   {

@@ -12,7 +12,7 @@ using compiler
 ** with no declarations/occurrences; the pipeline must not publish that value.
 class SemanticIndexer
 {
-  ** T04b MUST pass true only after ResolveExpr has run to completion (including
+  ** The compile pipeline must pass true only after ResolveExpr completes (including
   ** its final CompilerErr for resolution errors). Earlier step failures pass
   ** false. The default is conservative: AST literals do not prove resolution.
   SemanticSnapshot extract(Compiler c, Str:Str textByFileKey, Bool resolveExprComplete := false)

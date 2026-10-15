@@ -62,7 +62,7 @@ internal class HierarchyContext
   FantomLanguageServer server
   new make(FantomLanguageServer server) { this.server = server }
 
-  ** §7.12.12 per-request cap on heuristic re-resolution of parser calls.
+  ** Per-request cap on heuristic re-resolution of parser calls.
   static const Int fallbackCap := 500
 
   ** Heuristic re-resolutions performed by this request (<= fallbackCap).
@@ -176,7 +176,7 @@ internal class HierarchyContext
   ** outgoing calls FROM key. Equivalent to filtering the full workspace call
   ** list by (incoming ? o.key == key : o.enclosingSlotKey == key), except the
   ** parser fallback is name-prefiltered and capped at fallbackCap
-  ** re-resolutions per request (§7.12.12); beyond the cap results are partial.
+  ** re-resolutions per request; beyond the cap results are partial.
   Occurrence[] callsFor(Str key, Bool incoming)
   {
     result := Occurrence[,]

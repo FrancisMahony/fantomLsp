@@ -84,7 +84,7 @@ class HeuristicResolverTest : Test
     verifyEq(keys(at(file, "missing.close", 8)), keys(unknown))
   }
 
-  ** T13: `|A a->R|` return arrows are function-signature type references,
+  ** `|A a->R|` return arrows are function-signature type references,
   ** never dynamic calls on the last parameter. Real `->` calls stay dynamic,
   ** including inside closure bodies and `||` expressions.
   Void testFunctionTypeReturnArrowIsNotDynamic()
@@ -125,7 +125,7 @@ class HeuristicResolverTest : Test
     }
   }
 
-  ** T13: the heuristic polls the request cancel check inside its type and
+  ** The heuristic polls the request cancel check inside its type and
   ** slot loops; the poll's error propagates (never swallowed by catch-alls).
   Void testCandidateLoopsPollCancellation()
   {

@@ -1,7 +1,7 @@
 using concurrent
 
 **
-** T02 acceptance stress test (plan 8, T02): 300 generated files are indexed
+** Main-thread state-ownership stress test: 300 generated files are indexed
 ** from the `initialized` notification while 500 interleaved codeLens /
 ** definition / references / didChange messages go through `LspDispatcher`.
 ** No response may contain `error`; background compiles run for real.

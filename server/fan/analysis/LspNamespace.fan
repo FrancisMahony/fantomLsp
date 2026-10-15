@@ -116,7 +116,7 @@ class LspNamespace : CNamespace
     return found
   }
 
-  ** Runtime path inspection only. D6 forbids using these as lookup roots.
+  ** Runtime path inspection only; these are not workspace lookup roots.
   static File[] envRoots()
   {
     raw := Env.cur.vars["FAN_ENV_PATH"] ?: ""
@@ -185,7 +185,7 @@ class PodLookup
 
   Void install() { Actor.locals["fantomLsp.podLookup"] = this }
 
-  ** D6: runtime FAN_ENV_PATH is NOT a source of workspace lookup roots.
+  ** Runtime FAN_ENV_PATH is NOT a source of workspace lookup roots.
   new make(File[] roots := File[,]) { configure(roots) }
 
   private File[] roots := File[,]

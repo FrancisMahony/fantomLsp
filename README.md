@@ -1,135 +1,128 @@
 # Fantom Language Support
 
-Rich language support for [Fantom](https://fantom.org) in Visual Studio Code, powered by a full Language Server Protocol implementation.
+Language support for [Fantom](https://fantom.org) in Visual Studio Code, backed by a language server that uses the real Fantom compiler to work out what each name in your code refers to.
 
 ## Features
 
-### Code Intelligence
+### Navigation that follows the compiler
 
-- **Hover** -- type signatures, documentation, and constructor details for types and slots from your code and compiled pods.
-- **Go to Definition** -- compiler-backed bindings distinguish same-named types and slots, typed/inferred receivers, inheritance, chained calls, closures, and it-blocks. Cross-pod calls open workspace source; installed pods open source when available.
-- **Go to Declaration** -- jump to the declaration of a type or slot.
-- **Find References** -- find occurrences bound to the same symbol, not every matching name. Locals and parameters stay within their declaring scope.
-- **Rename Symbol** -- precise workspace edits for proven bindings; unsafe, external, ambiguous, or incomplete targets are refused with an explanation.
-- **Call Hierarchy** -- browse incoming and outgoing calls for any method or constructor.
-- **Type Hierarchy** -- browse supertypes and subtypes for classes and mixins.
+When two pods or types declare the same name (`close()`, `make`, `Foo`), **Go to Definition** goes to the declaration the Fantom compiler actually binds to. This takes into account:
+- typed and inferred receivers;
+- inheritance and `super`;
+- `using` imports and aliases;
+- chained calls, closures and it-blocks.
+
+If the target can't be proven (for example a dynamic `->` call, or code you're in the middle of editing), you get a ranked list to choose from rather than a guess.
+
+- **Go to Definition / Declaration / Type Definition / Implementation.** Calls into other workspace pods open their source. Calls into installed pods open the source packed in the pod, when it's available.
+- **Find References, Document Highlight, Linked Editing.** Only occurrences bound to the same symbol, not every word with the same spelling. Locals and parameters stay within their scope.
+- **Rename Symbol.** Precise workspace edits. Renames that can't be proven safe are refused with an explanation.
+- **Call Hierarchy and Type Hierarchy.** Incoming/outgoing calls, supertypes and subtypes.
+- **Code Lens.** Reference counts on methods, constructors and fields. Click a count to open the references peek. `N+` means some pods haven't been analysed yet.
+- **Document Symbols and Workspace Symbol Search** (`Ctrl+T`).
 
 ### Editing
 
-- **Completion** -- context-aware autocomplete: pod names in `using` statements, dot-completion on receivers, keywords, method locals, and types (including nested types). Method snippets include parameter placeholders. Missing usings can be added via auto-import on accept. Resolve fills documentation.
-- **Signature Help** -- parameter hints while typing function calls, with the active parameter highlighted.
-- **Code Actions** -- quick fixes including *Add missing using*, *Remove unused using*, *Organize usings*, and *Uncomment line*.
-- **On-type indent** -- indent when you type `}`.
-- **Document links** -- `using` statements link to source when `src` is available.
-
-### Navigation
-
-- **Document Symbols** -- outline and breadcrumb navigation for the current file.
-- **Workspace Symbol Search** -- `Ctrl+T` fuzzy search across all indexed symbols.
-- **Document Highlights** -- highlight other occurrences of the symbol under the cursor.
-- **Folding Ranges** -- fold types, methods, and comment blocks.
-- **Selection Range** -- expand/shrink selection by AST nesting.
-- **Linked Editing** -- edit same-symbol occurrences together in the current file, excluding unrelated matching names.
-- **Code Lens** -- lazy, precise reference counts on methods, constructors, and fields. Click a nonzero count to open the references peek; `N+ references` means coverage is incomplete.
-- **Inlay Hints** -- inferred types for local variables.
+- **Completion.** `using` pod and type names, dot-completion on receivers, locals, keywords and types. Method snippets include parameter placeholders. Accepting a type from another pod adds the missing `using`.
+- **Hover and Signature Help.** Signatures and documentation, with the active parameter highlighted.
+- **Code Actions.** Add missing using, remove unused using, organize usings, uncomment line.
+- **Formatting.** Whole document, selection, and on-type indent after `}`. Allman (default) or K&R braces. Handles triple-quoted strings and list literals, and respects your tab settings.
+- **Inlay Hints** for inferred local types, **Folding**, **Selection Range**, and **Document Links** on `using` statements.
 
 ### Diagnostics
 
-- **Real-time parser errors** on every keystroke.
-- **Compiler diagnostics** on open/save, with automatic cross-file refresh (including configured `test/` source directories). Background semantic warm-up follows workspace indexing.
-- **Unused local warnings** in addition to unused usings.
+- Parser errors as you type.
+- Compiler errors on open and save, covering every source directory in `build.fan` (including tests). Pods are also analysed in the background after the workspace is indexed.
+- Warnings for unused locals and unused usings.
 
-### Formatting
+### Syntax highlighting
 
-- Full-file and **range** formatting with **Allman** (default) or **K&R** bracket style.
-- Correctly handles triple-quoted multiline strings and list literal indentation.
-- Respects your editor tab size and spaces/tabs preference.
+A TextMate grammar, plus semantic tokens that tell classes, mixins, enums, methods and fields apart.
 
-### Syntax Highlighting
+## Getting started
 
-- Semantic token support that goes beyond the bundled TextMate grammar, distinguishing classes, methods, fields, enums, and mixins with modifiers like `declaration`, `readonly`, `static`, and `abstract`. Full document and **range** tokens.
-- VS Code `configurationDefaults` enable editor semantic highlighting for Fantom.
+### Requirements
 
-### Server control
-
-- **Status bar restart** -- restart the language server from the status bar without reloading the window.
-
-## Getting Started
-
-### Prerequisites
-
-- **Java 11+** on your `PATH`.
-- **Fantom** or **[SkySpark](https://skyfoundry.com/product)** installed locally.
+- Java 11 or later, on your `PATH` or set via `JAVA_HOME`.
+- A Fantom or [SkySpark](https://skyfoundry.com/product) installation.
 
 ### Setup
 
-1. Install the extension from the Marketplace.
-2. Open **Settings** (`Ctrl+,`) and set `fantom.home` to your Fantom or SkySpark installation directory (e.g. `C:\Skyspark\skyspark-4.0.5`). If you already have the `FAN_HOME` environment variable set, you can skip this step.
-3. Open a `.fan` file. The language server starts automatically.
+1. Install the extension.
+2. If the `FAN_HOME` environment variable isn't set, open **Settings** (`Ctrl+,`) and set **`fantom.home`** to your Fantom or SkySpark installation directory (for example `C:\SkySpark\skyspark-4.0.6`).
+3. Open a folder containing Fantom code and open a `.fan` file. The language server starts automatically, and **Fantom LS** appears in the status bar. Click it to restart the server.
+
+### Getting accurate cross-pod results
+
+The server compiles each pod separately, the same way `fan build.fan` does. When it compiles pod `A`, it reads the pods `A` depends on from their **built `.pod` files**. So that it reads your current builds rather than older copies in the Fantom installation:
+
+- Build your workspace pods as usual, so their `.pod` files end up in `<root>/lib/fan/`.
+- `<root>` is found automatically if it's a workspace folder or one of its three nearest parent folders, and it contains `lib/fan/*.pod` or `fan.props`. Folders *below* a workspace folder aren't searched.
+- Otherwise, add `<root>` (the folder that contains `lib`, not `lib/fan` itself) to **`fantom.envPath`**. For example, for pods in `D:\work\output\lib\fan\`, add `D:\work\output`.
+
+Rebuilt pods are picked up without restarting the server. Your workspace **source** is always what you navigate to and what hover shows. After changing a pod's public API, rebuild it so the pods that depend on it see the change.
+
+To see which installation and lookup roots are in use, open **View → Output** and select **Fantom LSP Launch**.
 
 ## Settings
 
-### Running without VS Code
-
-Build the server from the `server` directory with `fan build.fan`.
-Run it over standard input/output with `fan fantomLsp::Main`.
-The process speaks JSON-RPC using the LSP stdio transport.
-This is useful for protocol-level testing and other LSP clients.
-
 | Setting | Default | Description |
 |---|---|---|
-| `fantom.home` | `""` | Path to the Fantom / SkySpark installation directory. Falls back to the `FAN_HOME` environment variable. |
-| `fantom.javaOpts` | `"-Xmx1024m"` | JVM options for the language server. Increase `-Xmx` for large codebases. |
-| `fantom.maxFiles` | `0` | Max `.fan` files to index. `0` = no limit. |
-| `fantom.excludeDirs` | `.git`, `node_modules`, `lib`, … | Directory **names** skipped while discovering pods / sources. |
-| `fantom.envPath` | `[]` | Additional environment roots containing `lib/fan` workspace/dependency builds. Workspace roots are also auto-detected. These are file-backed lookup roots, not JVM runtime paths. |
-| `fantom.codeLens.enabled` | `true` | Show lazy reference-count lenses; can be changed without restarting. |
-| `fantom.semanticIndex.backgroundCompile` | `true` | Warm up semantic indexes after workspace indexing. Disabling this does not disable open/save compilation. |
-| `fantom.formatting.bracketStyle` | `"allman"` | `"allman"` places braces on a new line. `"k&r"` places braces on the same line. |
-| `fantom.trace.server` | `"off"` | LSP message tracing for debugging: `"off"`, `"messages"`, or `"verbose"`. |
+| `fantom.home` | `""` | Fantom or SkySpark installation directory. Falls back to the `FAN_HOME` environment variable. |
+| `fantom.envPath` | `[]` | Extra absolute root directories whose `lib/fan` contains your built workspace pods. Workspace folders and their three nearest parents are checked automatically. |
+| `fantom.javaOpts` | `"-Xmx1024m"` | JVM options for the server. Increase `-Xmx` for large workspaces. |
+| `fantom.maxFiles` | `0` | Maximum number of `.fan` files to index per pod. `0` means no limit. |
+| `fantom.excludeDirs` | `.git`, `node_modules`, `lib`, … | Directory names skipped while indexing. |
+| `fantom.codeLens.enabled` | `true` | Show reference-count code lenses. |
+| `fantom.semanticIndex.backgroundCompile` | `true` | Analyse workspace pods in the background after indexing. Open and saved files are always analysed. |
+| `fantom.formatting.bracketStyle` | `"allman"` | `"allman"` puts braces on a new line, `"k&r"` on the same line. |
+| `fantom.trace.server` | `"off"` | Log LSP traffic to the output channel: `"off"`, `"messages"` or `"verbose"`. |
+
+`fantom.home`, `fantom.javaOpts`, `fantom.maxFiles` and `fantom.excludeDirs` take effect after you reload the window; changing any of them offers a **Reload Window** button. Other settings apply immediately.
 
 ## Troubleshooting
 
-### The extension does not start
+**The server doesn't start**
+- Check that `fantom.home` (or `FAN_HOME`) points to an installation containing `lib/java/sys.jar`.
+- Run `java -version` to confirm Java is available.
+- Open the **Fantom LSP Launch** output channel to see the exact command that was run.
 
-1. Verify `fantom.home` points to a valid installation containing `lib/java/sys.jar`.
-2. Confirm Java is available: run `java -version` in a terminal.
-3. Check the **Fantom LSP Launch** output channel (`View > Output`, then select **Fantom LSP Launch**) for the exact command that was attempted.
+**Navigation goes to an old version of a library, or cross-pod calls aren't resolved**
+- Make sure the dependency is built, and that the root folder containing its `lib/fan` appears under "detected lookup roots" or "configured lookup roots" in **Fantom LSP Launch**. If it doesn't, add that root to `fantom.envPath`.
 
-### No completions or hover information
-
-- Wait a few seconds after opening a `.fan` file for workspace indexing to finish.
-- For large projects, increase memory: set `fantom.javaOpts` to `"-Xmx2048m"` or higher.
+**No completions or hover yet**
+- Indexing a large workspace takes a few seconds after startup.
+- For very large workspaces, raise the heap, e.g. `"fantom.javaOpts": "-Xmx2048m"`.
 - Check the **Fantom Language Server** output channel for errors.
-- Build/install dependency pods before expecting exact cross-pod resolution. Use `fantom.envPath` for additional roots containing their `lib/fan` builds.
-- Workspace/configured lookup roots are separate from the JVM runtime path: current workspace `.pod` files are read by the compiler namespace, not loaded into the JVM. Rebuilt dependencies are picked up on subsequent lookup/compile without a server restart or workspace-pod JVM file locks. `fantom.home` / `FAN_HOME` locate the installed runtime; the extension's server and installed runtime remain on the runtime path (D6).
 
-### Diagnostics are missing or stale
+**Rename is refused**
+- The message says why. Usually a pod that might reference the symbol doesn't currently compile, or the slot is overridden or overridable. Fix the compile error (or save the file) and try again.
 
-- Compiler diagnostics refresh on **save**. Parser diagnostics update on every keystroke.
+**Reporting a problem**
+- Set `fantom.trace.server` to `"verbose"`, reproduce the problem, and include the **Fantom Language Server** output with your report.
 
-### Formatting produces unexpected results
+## Known limitations
 
-- Check that `fantom.formatting.bracketStyle` matches your preference.
-- The formatter uses your editor's **Tab Size** and **Insert Spaces** settings.
+- **Code that can't be proven.** Dynamic `->` calls, files that don't parse, and lines edited since the last compile use a scope-aware fallback. It returns a single result only when there's exactly one candidate, otherwise a ranked list or nothing.
+- **Unbuilt dependencies.** A pod whose dependencies aren't built, or are out of date, may not get compiler-proven results. Navigation still works through the fallback.
+- **Rename is deliberately conservative.**
+  - Slots that are virtual, abstract, overridden or part of a mixin are refused.
+  - So is any slot whose type has a subtype in the workspace.
+  - Every workspace pod must currently compile.
+  - Locals and parameters can always be renamed within their scope.
+- **Installed pods without packaged source.** Go to Definition returns nothing; hover still shows the signature and documentation.
+- **Some type positions.** A few, such as some local and generic type annotations, aren't located by the compiler and use the fallback.
+- **Completion and semantic tokens** use the fast recovering parser, not the compiler index.
+- **Inlay hints** cover inferred locals only.
 
-### High memory usage or crashes
+## Using another editor
 
-- Increase the heap: set `fantom.javaOpts` to `"-Xmx2048m"`.
-- Enable `fantom.trace.server` at `"verbose"` to capture logs, then file an issue.
+The server is a standard LSP server over stdio. Build it with `fan build.fan` in `server/`, then run `fan fantomLsp::Main` from any LSP client.
 
-## Known Limitations
+## Contributing
 
-- **Fallback resolution** uses the recovering parser for dynamic `->` calls, unparseable files, unknown receivers, and regions edited since the last compile. Results are a deterministic ranked peek list or nothing, never an arbitrary first match. Unchanged lines can still use the last compiler bindings; compilation is not performed on every keystroke.
-- **Unbuilt dependencies** can prevent compiler name resolution. Build/install them on the workspace lookup path; fallback navigation and reference coverage may be incomplete until then.
-- **Rename** requires a proven workspace binding and complete semantic coverage (refreshing stale pods with a bounded wait). Locals/parameters remain scope-bounded. Virtual, abstract, override, and mixin slot families are conservatively refused: exact-key edits do not safely maintain dispatch families. Constructor shorthand is not a supported slot rename token.
-- **Slot rename is deliberately conservative:** any workspace subtype of the declaring type blocks it, even for a nonvirtual slot and a subtype unrelated to a mixin. The subtype audit requires current coverage of the entire workspace: an unrelated pod with a stale/unresolved/missing snapshot, duplicate pod names, or a source-file hash mismatch can block all slot renames. `prepareRename` never compiles. Rename's reference refresh is bounded and does not guarantee whole-workspace hierarchy coverage; with `fantom.semanticIndex.backgroundCompile=false`, unrelated unopened pods may remain unavailable despite reference refresh. Open/save those pods or re-enable warm-up, then retry. Local rename does not require this global subtype audit.
-- **Installed source** may be absent. Definition then returns nothing, while hover can still show the installed signature/documentation.
-- **Compiler type-token coverage** varies with compiler APIs; type positions without source locations (such as some local/generic type annotations) use the scope-aware fallback. Completion and semantic tokens continue to use the recovering-parser indexes.
-- **Inlay hints** cover inferred locals, not fields.
-- **Request cancel** (`$/cancelRequest`) is best-effort (tracked ids only).
-- **Compiler diagnostics** are computed asynchronously after open/save. Indexing walks folders that contain `build.fan` (works with a large multi-repo workspace).
+Bug reports and pull requests are welcome on [GitHub](https://github.com/FrancisMahony/fantomLsp/issues). See [CONTRIBUTING.md](CONTRIBUTING.md) for building and testing, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the server works.
 
 ## License
 
-Free to use. Source code is proprietary. See the LICENSE file included with the extension for details.
+[MIT](LICENSE)

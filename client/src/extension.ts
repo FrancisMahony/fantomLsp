@@ -241,8 +241,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }
   };
 
+  // The client id is the settings prefix vscode-languageclient reads for
+  // "<id>.trace.server", so it must match the contributed "fantom" section.
   client = new LanguageClient(
-    "fantomLanguageServer",
+    "fantom",
     "Fantom Language Server",
     serverOptions,
     clientOptions
@@ -287,9 +289,12 @@ export async function activate(context: ExtensionContext): Promise<void> {
   }
 
   workspace.onDidChangeConfiguration((e) => {
-    if (e.affectsConfiguration("fantom.home") || e.affectsConfiguration("fantom.javaOpts")) {
-      window.showInformationMessage("Fantom Language Server settings changed.", "Restart").then((choice) => {
-        if (choice === "Restart") commands.executeCommand("fantom.restartServer");
+    // Launch options are captured at activation; client.restart() reuses them,
+    // so these settings only take effect after a window reload.
+    const launchSettings = ["fantom.home", "fantom.javaOpts", "fantom.maxFiles", "fantom.excludeDirs"];
+    if (launchSettings.some((s) => e.affectsConfiguration(s))) {
+      window.showInformationMessage("Reload the window to apply the changed Fantom settings.", "Reload Window").then((choice) => {
+        if (choice === "Reload Window") commands.executeCommand("workbench.action.reloadWindow");
       });
     }
     if (e.affectsConfiguration("fantom.formatting.bracketStyle")) {

@@ -28,7 +28,7 @@ class Main
 }
 
 **
-** The main (dispatch) thread loop (plan 7.12.10). A `StdinReaderActor` reads
+** The main (dispatch) thread loop. A `StdinReaderActor` reads
 ** and parses continuously into a FIFO of completable futures off the main
 ** thread, marking cancellation tokens before handing over their frames.
 ** The main thread waits for the head with a `pollInterval` timeout; on timeout it calls

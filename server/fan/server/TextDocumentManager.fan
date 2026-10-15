@@ -1,7 +1,7 @@
 **
 ** Open-document buffers keyed by canonical URI.
 **
-** Main (dispatch) thread only (plan 7.3): this class, `DocumentState` and the
+** Main (dispatch) thread only: this class, `DocumentState` and the
 ** cached `ParseResult`s are not thread-safe and must never be read or written
 ** by background actors. Background work receives immutable copies of the text
 ** (`CompileRequest`) instead.

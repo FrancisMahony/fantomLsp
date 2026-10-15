@@ -3,7 +3,7 @@ using compiler
 **
 ** Parser and compiler diagnostics.
 **
-** Thread affinity (plan 7.3 / 7.12.9):
+** Thread affinity:
 **   - `computeParserDiagnosticsFor` and the static `compilerDiagnosticsFor` are pure:
 **     they read only their arguments and may run on any thread.
 **   - Everything that reads `docManager` or the compiler-diagnostics cache is
@@ -164,7 +164,7 @@ class DiagnosticsProvider
   }
 
   //////////////////////////////////////////////////////////////////////////
-  // Compiler-diagnostics cache (main thread only, plan 7.12.9)
+  // Compiler-diagnostics cache (main thread only)
   //////////////////////////////////////////////////////////////////////////
 
   ** Replace the cached compiler diagnostics for `key` (accepted compile result).

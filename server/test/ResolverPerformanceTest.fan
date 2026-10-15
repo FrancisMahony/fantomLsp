@@ -1,4 +1,4 @@
-** Dispatch-thread latency regressions on a large compiled file (T13). Limits
+** Dispatch-thread latency regressions on a large compiled file. Limits
 ** carry a wide machine margin; the pre-fix implementation took seconds for
 ** hover/definition and tens of seconds for code lens on this shape.
 class ResolverPerformanceTest : Test
@@ -60,7 +60,7 @@ class ResolverPerformanceTest : Test
     verify(snap.occByFile[file].size >= 1500, "occs=${snap.occByFile[file].size}")
 
     // Open and shift by one line so every lookup goes through position mapping.
-    shifted := "// t13\n" + text
+    shifted := "// edit\n" + text
     s.didOpen(["textDocument": ["uri": file, "languageId": "fantom", "version": 1, "text": text]])
     s.didChange(["textDocument": ["uri": file, "version": 2], "contentChanges": [["text": shifted]]])
     cur := TextDocumentManager.toLines(shifted)
@@ -114,7 +114,7 @@ class ResolverPerformanceTest : Test
       "prepare=$prepareMs incoming=$incomingMs outgoing=${outgoingMs}ms")
   }
 
-  ** §7.12.12: the parser fallback resolves only same-name candidates and at
+  ** The parser fallback resolves only same-name candidates and at
   ** most fallbackCap of them per request; unrelated calls cost nothing.
   Void testIncomingFallbackIsNamePrefilteredAndCapped()
   {

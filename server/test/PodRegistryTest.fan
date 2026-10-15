@@ -69,7 +69,7 @@ class PodRegistryTest : Test
     verifyNull(registry.byBuildKey(bKey))
   }
 
-  ** T13: memoized sort/prefix/owner tables are invalidated by every rebuild,
+  ** Memoized sort/prefix/owner tables are invalidated by every rebuild,
   ** and filesOf still observes the live filesystem between rebuilds.
   Void testMemoizedOwnershipInvalidatedByRebuildAndLiveFiles()
   {

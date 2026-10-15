@@ -208,7 +208,7 @@ class LspNamespaceTest : Test
     text := output.flip.readAllStr
     echo(text)
     verifyEq(code, 0)
-    verify(text.contains("D6 PATHENV PASS: no JVM workspace load, overwrite/delete/reload, corrupt isolation, runtime exclusion"))
+    verify(text.contains("PathEnv isolation PASS: no JVM workspace load, overwrite/delete/reload, corrupt isolation, runtime exclusion"))
   }
 }
 
@@ -246,7 +246,7 @@ class NamespacePathEnvProbe
       server.didChangeConfiguration(["settings": ["fantom": ["envPath": Str[,]]]])
       if (lookup.findType(name, typeName) != null) throw Err("Removed setting resurrected")
       file.delete
-      echo("D6 PATHENV PASS: no JVM workspace load, overwrite/delete/reload, corrupt isolation, runtime exclusion")
+      echo("PathEnv isolation PASS: no JVM workspace load, overwrite/delete/reload, corrupt isolation, runtime exclusion")
     }
     finally { ws.cleanup }
   }

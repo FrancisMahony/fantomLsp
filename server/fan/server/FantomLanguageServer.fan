@@ -1,7 +1,7 @@
 using concurrent
 
 **
-** THREADING INVARIANT (plan 7.3, T02)
+** THREADING INVARIANT
 ** ===================================
 ** `SymbolTable`, `ReferenceIndex`, `TypeResolver`, `TextDocumentManager` /
 ** `DocumentState`, the compiler-diagnostics cache in `DiagnosticsProvider`,
@@ -238,10 +238,10 @@ class FantomLanguageServer
   }
 
   ** Main-thread service; future compiler actors receive envPath as immutable
-  ** input and construct a fresh LspNamespace for each CompilerInput.ns (T04b).
+  ** input and construct a fresh LspNamespace for each CompilerInput.ns.
   private Void configureNamespace()
   {
-    // D6: launch/runtime roots never become workspace overrides. In particular,
+    // Launch/runtime roots never become workspace overrides. In particular,
     // removing a configured root must not resurrect it from the process env.
     roots := LspNamespace.pathRoots(configuredEnvPath)
     folders := File[,]
@@ -837,7 +837,7 @@ class FantomLanguageServer
       docManager.change(uri, version, evt)
     }
     stampDocument(uri)
-    // Keep compiler diagnostics outside the edited lines (plan 7.12.9).
+    // Keep compiler diagnostics outside the edited lines.
     diagnosticsProvider.adjustCompilerDiagnostics(uri, oldText, doc.text)
     pendingPublish.remove(uri)
     parseResult := docManager.parseDocument(uri)
@@ -855,7 +855,7 @@ class FantomLanguageServer
     docVersions.remove(uri)
     diagnosticsProvider.clearCompilerDiagnostics(uri)
     pendingPublish.remove(uri)
-    // Lifecycle (plan 7.12.14): the disk content becomes authoritative again.
+    // On close, the disk content becomes authoritative again.
     // Buffer entries of non-source documents, and of files outside every current
     // workspace folder (e.g. a removed folder, also after the last folder was
     // removed), are dropped instead.
@@ -938,7 +938,7 @@ class FantomLanguageServer
 
       if (kind == 3)
       {
-        // Lifecycle (plan 7.12.14): later background batches must not resurrect it.
+        // Later background batches must not resurrect the deleted file.
         diskEventTicks[uri] = Duration.now.ticks
         removeFromIndex(uri)
         if (!docManager.openUris.isEmpty && podRegistry.podForFile(uri) == null)
@@ -1418,7 +1418,7 @@ const class IndexBatch
 }
 
 **
-** Immutable compile input (plan 7.3): open-buffer overlay `key -> text` and
+** Immutable compile input: open-buffer overlay `key -> text` and
 ** `key -> stamp`. The actor never touches main-thread state.
 **
 const class CompileRequest

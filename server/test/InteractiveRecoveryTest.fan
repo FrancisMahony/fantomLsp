@@ -1,13 +1,16 @@
 using concurrent
 
 **
-** T13 user smoke regression: a sustained, paced interactive burst through the
+** Interactive-latency regression: a sustained, paced burst through the
 ** production main loop (reader thread, cancel tokens, dispatcher, mailbox
 ** apply) on an explicitly supplied real workspace, starting as soon as the
 ** index completes so background warm-up compiles overlap the burst exactly as
-** in the failed F5 session. Read-only: no workspace file is written; the
-** document is opened from its disk text. Opt in with FANTOM_LSP_RECOVERY_ROOT
-** and FANTOM_LSP_RECOVERY_FILE; skipped by default, invalid opt-ins fail.
+** in a real-workspace interactive session. Read-only: no workspace file is
+** written; the document is opened from its disk text. Opt in with
+** FANTOM_LSP_RECOVERY_ROOT (workspace directory) and FANTOM_LSP_RECOVERY_FILE
+** (fixture source file); skipped by default, invalid opt-ins fail. Optional
+** FANTOM_LSP_RECOVERY_POD overrides the nearest build.fan's podName for lens
+** keys; if neither supplies a pod name, lens resolve requests are omitted.
 **
 ** Latency is measured from the moment the client frame is released to the
 ** reader thread until the handler returns (queueing included).
@@ -16,7 +19,7 @@ class InteractiveRecoveryTest : Test
 {
   ** Pacing: one "click" cycle every cycleMs for cycles cycles.
   ** One full hover/move/click cycle per second for 100 s: several times the
-  ** request rate in the user's failing log (about 240 messages in 5 min).
+  ** request rate in a real-workspace session (about 240 messages in 5 min).
   static const Int cycleMs := 1000
   static const Int cycles := 100
 
@@ -26,7 +29,7 @@ class InteractiveRecoveryTest : Test
     filePath := Env.cur.vars["FANTOM_LSP_RECOVERY_FILE"]?.trim
     if (rootPath == null && filePath == null)
     {
-      echo("T13 InteractiveRecoveryTest: SKIPPED (opt-in requires FANTOM_LSP_RECOVERY_ROOT and FANTOM_LSP_RECOVERY_FILE)")
+      echo("InteractiveRecoveryTest: SKIPPED (opt-in requires FANTOM_LSP_RECOVERY_ROOT and FANTOM_LSP_RECOVERY_FILE)")
       return
     }
     verify(rootPath != null && !rootPath.isEmpty, "FANTOM_LSP_RECOVERY_ROOT must name a workspace directory")
@@ -44,7 +47,7 @@ class InteractiveRecoveryTest : Test
     uri := UriKey.toClientUri(WorkspaceManager.fileToUri(fixture))
     td := ["uri": uri]
 
-    // Positions that were slow or common in the failed session: sys types,
+    // Positions that were slow or common in an interactive session: sys types,
     // dynamic calls, closure signature return types, slots and locals.
     spots := Position[,]
     [["->status", 2], ["->toStr", 2], ["s->Str|", 3], ["Str[] ids", 0], ["Dict manifest", 0],
@@ -58,11 +61,12 @@ class InteractiveRecoveryTest : Test
 
     // Code-lens resolve payloads in the provider's data shape.
     typeName := lines.eachWhile |l| { m := Regex<|^\s*(?:\w+\s+)*class\s+(\w+)|>.matcher(l); return m.find ? m.group(1) : null }
+    podName := recoveryPodName(fixture, Env.cur.vars["FANTOM_LSP_RECOVERY_POD"])
     lensKeys := Str[,]
     lines.each |l|
     {
       m := Regex<|^\s+static\s+[\w\[\]?:]+\s+(\w+)\(|>.matcher(l)
-      if (m.find && lensKeys.size < 2) lensKeys.add("nv5Ai::${typeName}.${m.group(1)}")
+      if (podName != null && m.find && lensKeys.size < 2) lensKeys.add("${podName}::${typeName}.${m.group(1)}")
     }
 
     ready := AtomicBool(false)
@@ -175,7 +179,7 @@ class InteractiveRecoveryTest : Test
       s := dispatcher.started[id]; e := dispatcher.ended[id]
       if (s != null && e != null) own.add(ms(e - s).toStr.padl(6) + "ms " + m + " " + (dispatcher.params[id]?.get("position") ?: ""))
     }
-    echo("T13 slowest handler times:\n  " + own.sortr[0..<own.size.min(12)].join("\n  "))
+    echo("Slowest handler times:\n  " + own.sortr[0..<own.size.min(12)].join("\n  "))
     summary := StrBuf()
     interactive := Int[,]
     lat.keys.sort.each |m|
@@ -192,7 +196,7 @@ class InteractiveRecoveryTest : Test
     Int lastBurstEnd := dispatcher.ended.findAll |v, k| { k != probe && methods.containsKey(k) }.vals.max ?: 0
     tail := ms(lastBurstEnd - lastRelease)
     probeMs := ms(dispatcher.ended[probe] - (Int)released["req:$probe"])
-    echo("T13 sustained burst (root ${root.osPath}, ${cycles * cycleMs}ms pacing window, ${methods.size} requests, warm-up compiles=${server.semanticCompileCount}, snapshots=${server.semanticSnapshots.size}):" +
+    echo("Sustained burst (root ${root.osPath}, ${cycles * cycleMs}ms pacing window, ${methods.size} requests, warm-up compiles=${server.semanticCompileCount}, snapshots=${server.semanticSnapshots.size}):" +
       summary + "\n  interactive p95=${pct(interactive, 95)} max=${interactive.last}ms; cancels after-start=$cancelled late=$lateCancel; " +
       "drain after last release=${tail}ms; recovery probe hover=${probeMs}ms")
 
@@ -202,6 +206,42 @@ class InteractiveRecoveryTest : Test
     verify(tail <= 1000, "queue drained ${tail}ms after the last burst frame")
     verify(probeMs <= 200, "recovery probe ${probeMs}ms")
     verify(byId[probe]?.get("result") != null, "recovery probe returned no hover")
+  }
+
+  Void testRecoveryPodName()
+  {
+    ws := TestWorkspace()
+    try
+    {
+      fixture := ws.root + `nested/fan/A.fan`
+      fixture.out.print("class A {}\n").close
+      (ws.root + `build.fan`).out.print("podName = \"outer\"\n").close
+      verifyEq(recoveryPodName(fixture, null), "outer")
+      (ws.root + `nested/build.fan`).out.print("  podName = \"inner\"\n").close
+      verifyEq(recoveryPodName(fixture, null), "inner")
+      verifyEq(recoveryPodName(fixture, " customPod "), "customPod")
+      verifyEq(recoveryPodName(fixture, " "), "inner")
+      (ws.root + `nested/build.fan`).out.print("class Build {}\n").close
+      verifyNull(recoveryPodName(fixture, null))
+      (ws.root + `nested/build.fan`).delete
+      (ws.root + `build.fan`).delete
+      verifyNull(recoveryPodName(fixture, null))
+      verifyEq(recoveryPodName(fixture, "explicitPod"), "explicitPod")
+    }
+    finally { ws.cleanup }
+  }
+
+  private static Str? recoveryPodName(File fixture, Str? overrideName)
+  {
+    if (overrideName != null && !overrideName.trim.isEmpty) return overrideName.trim
+    try
+    {
+      build := CompilerDiagnostics().findBuildFan(WorkspaceManager.fileToUri(fixture))
+      if (build == null) return null
+      m := Regex<|(?m)^\s*podName\s*=\s*"([^"]+)"|>.matcher(build.readAllStr)
+      return m.find ? m.group(1) : null
+    }
+    catch (Err e) { return null }
   }
 
   private static Int pct(Int[] sorted, Int p)

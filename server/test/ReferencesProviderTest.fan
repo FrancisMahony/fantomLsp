@@ -62,7 +62,7 @@ class ReferencesProviderTest : Test
   }
 }
 
-** T09-only fixture: no shared test infrastructure or server wiring changes.
+** Local rename/reference fixture; no shared infrastructure or server wiring changes.
 internal class T09Fixture
 {
   TestWorkspace ws := TestWorkspace()
@@ -92,7 +92,7 @@ internal class T09Fixture
     s.didOpen(["textDocument": ["uri": client, "languageId": "fantom", "version": 1, "text": text]])
     doc = s.docManager.getDocument(key(file))
     if (fresh && !s.ensureFresh(s.podRegistry.allPods.map |p->Str| { p.buildKey }))
-      throw Err("T09 fixture semantic refresh failed")
+      throw Err("Reference fixture semantic refresh failed")
   }
 
   Position at(Str word, Int line)

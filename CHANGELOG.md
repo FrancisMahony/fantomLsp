@@ -1,75 +1,83 @@
 # Changelog
 
-## 0.3.0 Unreleased
+All notable user-visible changes to this extension are documented here.
 
-### Symbol-resolution correctness
+## 0.3.0 (unreleased)
 
-- Shared compiler-backed resolution for navigation, hover/signature help, references, rename, highlights, linked editing, and call/type hierarchies; collision-safe declaring-pod/type/slot identities and scope-bounded locals.
-- Deterministically ranked fallback navigation for unknown/dynamic receivers and edited or unparseable regions; no arbitrary name-only jump. Rename refuses unproven/incomplete/external targets and virtual/override/abstract/mixin slot families. Slot rename also refuses any workspace subtype of its owner (even nonvirtual), and requires fresh, resolved, nonduplicate whole-workspace coverage; unrelated stale pods can block it. Preparation never compiles, and reference refresh alone may not restore hierarchy coverage when background warm-up is disabled.
-- Lazy `codeLens/resolve` reference counts with clickable references peek, incomplete-coverage `N+` labels, and `fantom.codeLens.enabled` (default true).
-- `fantom.semanticIndex.backgroundCompile` (default true) controls post-index warm-up; open/save compiles use real open-buffer overlays and configured test source directories.
-- `fantom.envPath` and auto-detected workspace roots use a file-backed compiler namespace separate from JVM runtime lookup (D6), so rebuilt workspace dependencies can reload without restart.
-- Canonical Windows file identities preserve client URI encodings in locations/edits and avoid duplicate physical indexing. Background producers publish immutable results to the dispatch-thread mailbox.
-- Protocol acceptance coverage in `NavigationAcceptanceTest` for A1–A8, including real two-pod initialization/open/save lifecycle and a 300-file/500-message mixed-feature stress test with real lens/hierarchy items, successful scoped-local renames, and separately asserted unsafe-rename refusals.
+The headline change: navigation now follows the Fantom compiler. In 0.2.0, symbols were matched by name, so a click could land on a same-named method in an unrelated type or pod. 0.3.0 uses the compiler's resolution of each name, and when it can't be sure it shows a ranked list instead of guessing.
 
-Earlier 0.2.0 implementation notes below are historical; the symbol-resolution behavior above supersedes name-based navigation and implementer-count lens descriptions.
+### Symbol resolution
 
-- **Stdio write actor** — JSON-RPC writes serialized on `StdioWriteActor`; idle compiler diagnostics can flush without waiting on the next request.
-- **`fantom.maxFiles`** — index file cap; default `0` (unlimited). Heap via `fantom.javaOpts`.
-- **Workspace index** — discovers pods by `build.fan` under the workspace (large folders like `C:\Code` work).
-- **URI `%3A`** — Windows `file:///c%3A/...` folders decode so indexing and `build.fan` compile succeed.
-- **Parser** — facet classes, closures, and static blocks parse more reliably (nested types still line-oriented).
-- **Go to Definition** — fixed slot/type lookup (closure return bug); jump into compiled pod `src` when available.
-- **Diagnostics split** — parser diagnostics on change; compiler diagnostics on open/save (async actor).
-- **CRLF** — document model preserves `\r\n`; offsets stay aligned with the editor.
-- **Watched files** — `workspace/didChangeWatchedFiles` indexes add/remove; `.fwt` indexed with `.fan`.
-- **Cross-file intelligence** — hover, completion, and definition use the workspace `SymbolTable`.
-- **Call hierarchy** — incoming/outgoing from `bodyCallRefs`.
-- **Inlay hints** — inferred types (not fields).
-- **Document highlights** and **folding ranges**.
-- **Async index/compile** — workspace index and compiler diagnostics run off the request loop; compile notifications write via `StdioWriteActor`.
-- **Rename** — in-file locals/params; qualified type/slot rename with dedupe.
-- **Semantic tokens** for references; completion snippets and `using` additionalTextEdits.
-- **Compiler `srcDirs`** recurse nested directories.
-- **Mixins** — implementation lookup for mixin implementers.
-- **Code lens** — mixin implementer counts and similar inline hints.
-- **Linked editing** — matching identifiers in the current file.
-- **Selection range** — expand/shrink selection by AST nesting.
-- **Preferred-uri definition** — `findType` / `findSlot` prefer the current file on duplicate names.
-- **Param `localDefs`** — method parameters recorded as local defs for in-scope rename/completion.
-- **Nested types** — parser/index support for types nested in other types.
-- **Method locals** — improved local variable capture for completion, rename, and highlights.
-- **Organize usings** — code action to sort and clean `using` statements.
-- **Type hierarchy** — supertypes and subtypes for classes and mixins.
-- **Go to Declaration** — jump to declarations (alongside Go to Definition).
-- **Status bar restart** — restart the language server from the status bar.
-- **Semantic highlighting defaults** — `configurationDefaults` enable editor semantic highlighting for Fantom.
-- **Unused local warnings** — diagnostics for unused locals in addition to unused usings.
-- **Range formatting** — format a selection, not only the whole file.
-- **On-type indent** — indent on `}` while typing.
-- **Document links** — `using` statements link to source when `src` is available.
-- **Completion resolve docs** — `completionItem/resolve` fills documentation on accept/hover of an item.
-- **Semantic tokens range** — `semanticTokens/range` in addition to full-document tokens.
-- **Multi-root folder preference** — workspace folders prefer the current root when resolving types/slots.
+- **Compiler-backed navigation.** Go to Definition, Declaration, Type Definition, Implementation, Hover, Signature Help, References, Rename, Document Highlight, Linked Editing, Code Lens and Call/Type Hierarchy now share one resolver. Each pod is compiled in the background, including unsaved editor changes, and every reference is bound to the declaration the compiler chose: the right slot, on the right type, in the right pod.
+- **No more arbitrary jumps.** Dynamic `->` calls, unparseable files, unknown receivers and recently edited lines use a scope-aware fallback. It returns a deterministic ranked list or nothing.
+- **Locals stay in scope.** Locals and parameters resolve only within their method or closure.
+- **References and highlights are exact.** They include only occurrences bound to the same symbol, not every matching word.
+- **Safer rename.** Rename refuses, with an explanation, when it can't prove the edit is complete and safe. This includes slots that are part of a virtual, override or mixin family, and slots whose type has workspace subtypes. Locals and parameters are renamed only within their scope.
+- **Source for installed pods.** Go to Definition into an installed pod opens the source packed in that pod, at the exact line recorded by the compiler. If there's no source, it returns nothing rather than opening the wrong file.
+
+### Workspace pods
+
+- **Current builds are used.** The server now reads your workspace's built pods (auto-detected `lib/fan` folders plus the new `fantom.envPath` setting) in preference to older copies in the Fantom or SkySpark installation.
+- **No restart after rebuilding.** Rebuilt pods are picked up automatically, and the JVM no longer locks workspace pod files.
+
+### Code lens
+
+- **Reference counts** are computed lazily and are precise.
+- **Clicking a count** opens the references peek.
+- **`N+`** means some pods haven't been analysed yet.
+- **Setting:** `fantom.codeLens.enabled` (default `true`).
+- **Fixed:** intermittent "Request textDocument/codeLens failed" notifications, which were caused by a threading bug.
+
+### Diagnostics
+
+- Compiler diagnostics now compile unsaved changes in every open file of the pod, and cover all `srcDirs`, including test directories.
+- Compiler errors are matched to files by full path, so errors from a same-named file in another directory no longer leak in.
+- Compiler diagnostics are no longer cleared by typing on unrelated lines.
+
+### Reliability and performance
+
+- **Thread safety.** All analysis state is owned by a single thread, which removes the internal errors seen during indexing.
+- **Cancellation.** Long requests (references, code lens, call hierarchy) respond to cancellation and stay responsive in large workspaces.
+- **No duplicate indexing on Windows.** A file is no longer indexed twice under different URI spellings (`c%3A` vs `C:`).
+
+### Project
+
+- **Open source under the MIT License.** The source is at <https://github.com/FrancisMahony/fantomLsp>.
+
+### Settings
+
+- New `fantom.envPath`: extra directories containing built workspace pods.
+- New `fantom.codeLens.enabled`: show or hide reference-count lenses.
+- New `fantom.semanticIndex.backgroundCompile`: analyse workspace pods in the background after indexing (default `true`).
+- `fantom.trace.server` now actually enables LSP message tracing.
+- Changing `fantom.home`, `fantom.javaOpts`, `fantom.maxFiles` or `fantom.excludeDirs` now offers to reload the window. The previous **Restart** button kept the old values.
+
+## 0.2.0
+
+- **Workspace indexing.** Discovers pods by `build.fan` anywhere under the workspace, so large multi-repo folders work. New `fantom.maxFiles` setting (default unlimited).
+- **Cross-file intelligence.** Hover, completion and definition use the whole workspace, not just the current file.
+- **Background work.** Indexing and compiler diagnostics run off the request thread.
+- **Diagnostics.** Parser diagnostics on change, compiler diagnostics on open and save. Unused-local warnings. Nested `srcDirs` are compiled.
+- **New features.**
+  - Call and type hierarchy.
+  - Inlay hints for inferred locals.
+  - Document highlights, folding ranges, selection ranges, linked editing.
+  - Document links on `using`.
+  - Go to Declaration.
+  - Range formatting and on-type indent.
+  - Completion snippets with parameter placeholders, auto-added `using`, and documentation on resolve.
+  - Semantic tokens for references and ranges.
+  - Organize-usings code action.
+  - Status-bar restart.
+- **Editor integration.** Watched-file changes update the index; `.fwt` files are indexed.
+- **Correctness.** CRLF line endings are preserved. Windows `file:///c%3A/...` URIs are decoded correctly. Go to Definition no longer fails for slots.
 
 ## 0.1.1
 
-### Formatting improvements
-
-- **Triple-quoted strings**: multiline `"""` string content is now indented so the first character aligns with the column after the opening triple quotes.
-- **List literal indentation**: items inside `[...]` list and map literals are indented one level deeper than the opening bracket.
-- **Allman is now the default bracket style**, matching the convention used by the Fantom language creator. The `preserve` option has been removed; choose `allman` or `k&r`.
+- **Triple-quoted strings.** Multiline `"""` string content is indented to align with the opening quotes.
+- **List and map literals.** Items inside `[...]` are indented one level deeper than the opening bracket.
+- **Allman braces by default**, matching the convention used by Fantom's creators. The `preserve` option was removed; choose `allman` or `k&r`.
 
 ## 0.1.0
 
-Initial release.
-
-- Hover, Go to Definition, Find References, Rename Symbol
-- Completion with dot-completion, using-completion, and keyword/type completion
-- Signature Help with active parameter highlighting
-- Document Symbols and Workspace Symbol Search
-- Diagnostics from the recovering parser and the Fantom compiler
-- Code Actions: add missing using, remove unused using, uncomment line
-- Code Formatting with bracket style configuration
-- Semantic Tokens for rich syntax highlighting
-- Call Hierarchy (incoming and outgoing calls)
+Initial release: hover, go to definition, find references, rename, completion, signature help, document and workspace symbols, parser and compiler diagnostics, code actions, formatting, semantic tokens and call hierarchy.

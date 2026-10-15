@@ -1,6 +1,6 @@
 using concurrent
 
-** T04b: cancellation must be read while dispatch is inside ensureFresh, not
+** Cancellation must be read while dispatch is inside ensureFresh, not
 ** preloaded by the test or delivered after the ten-second freshness timeout.
 class CancelDeliveryTest : Test
 {
@@ -73,7 +73,7 @@ class CancelDeliveryTest : Test
       finished.val = true
       text := errors.flip.readAllStr
       verifyEq(code, 0, text)
-      verify(text.contains("T04b child PASS: handled=6 tokens=0 wait=1 hover=1 shutdown=1"), text)
+      verify(text.contains("Cancellation child PASS: handled=6 tokens=0 wait=1 hover=1 shutdown=1"), text)
       rpc := JsonRpc(output.flip.in, Buf().out)
       msgs := [Str:Obj?][,]
       while (true)
@@ -87,7 +87,7 @@ class CancelDeliveryTest : Test
     finally { finished.val = true; watchdogPool.stop.join }
   }
 
-  ** T13: a $/cancelRequest delivered by the reader thread while a real
+  ** A $/cancelRequest delivered by the reader thread while a real
   ** callHierarchy/incomingCalls request runs stops its fallback loop. The
   ** response is a normal null result for the actual request ID (no -32603).
   Void testMidRequestCallHierarchyCancel()
@@ -102,7 +102,7 @@ class CancelDeliveryTest : Test
     verifyEq(total, HierarchyContext.fallbackCap)
   }
 
-  ** T13: textDocument/references forwards the actual request ID; the reader
+  ** textDocument/references forwards the actual request ID; the reader
   ** thread's cancel stops its bounded heuristic fallback loop mid-request.
   Void testMidRequestReferencesCancel()
   {
@@ -148,7 +148,7 @@ class CancelDeliveryTest : Test
     baseline := (Duration.now - t0).toMillis
     base.shutdown
     verifyNull(full["error"], full.toStr)
-    if (baseline < 700) { echo("T13 $method cancel fixture too fast ($baseline ms); mid-request bound not asserted"); return null }
+    if (baseline < 700) { echo("$method cancel fixture too fast ($baseline ms); mid-request bound not asserted"); return null }
 
     started := AtomicBool(false)
     server := FantomLanguageServer()
@@ -168,7 +168,7 @@ class CancelDeliveryTest : Test
     verify(probe.elapsed >= 150, "cancel not mid-request: $probe.elapsed ms")
     verify(probe.elapsed * 5 < baseline * 3, "cancel ignored: $probe.elapsed ms vs baseline $baseline ms")
     verify(server.cancelTokens.isEmpty)
-    echo("T13 mid-request $method cancel: $probe.elapsed ms (uncancelled $baseline ms)")
+    echo("Mid-request $method cancel: $probe.elapsed ms (uncancelled $baseline ms)")
     return full["result"]
   }
 
@@ -199,7 +199,7 @@ class CancelDeliveryTest : Test
     verify(elapsed < 3000, "cancel waited $elapsed ms (freshness timeout is 10000 ms)")
     verifyEq(msgs[1]["result"], "hover-once")
     verifyNull(msgs[2]["result"])
-    echo("T04b mid-wait cancel response: $elapsed ms; FIFO responses [1, 1, 3]")
+    echo("Mid-wait cancel response: $elapsed ms; FIFO responses [1, 1, 3]")
   }
 
   private static Str prefix(File file)
@@ -313,7 +313,7 @@ class CancelDeliveryProbe
     if (loop.messagesHandled != 6 || !server.cancelTokens.isEmpty ||
         dispatcher.waitCalls != 1 || dispatcher.hoverCalls != 1 || dispatcher.shutdownCalls != 1)
       throw Err("Child FIFO/count/token invariant failed")
-    Env.cur.err.printLine("T04b child PASS: handled=6 tokens=0 wait=1 hover=1 shutdown=1")
+    Env.cur.err.printLine("Cancellation child PASS: handled=6 tokens=0 wait=1 hover=1 shutdown=1")
     Env.cur.exit(code)
   }
 }

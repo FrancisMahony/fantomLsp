@@ -1,13 +1,21 @@
+# Build output
 /lib/
-/.claude/
-/var/
-/temp/
-/.abacusai/
-.VSCodeCounter/
-client/server/
-client/node_modules/
+/server/lib/
 client/out/
+client/server/
 client/*.vsix
+
+# Dependencies
+client/node_modules/
+
+# Files copied into client/ only while packaging the VSIX
 client/README.md
 client/CHANGELOG.md
 client/LICENSE
+
+# Local scratch and tool state
+/var/
+/temp/
+/.claude/
+/.abacusai/
+.VSCodeCounter/

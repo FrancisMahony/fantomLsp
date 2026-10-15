@@ -638,31 +638,6 @@ class CompilerDiagnosticsTest : Test
     verify(a.size <= 31)
   }
 
-  Void testDumpNv5FacilityoneCompile()
-  {
-    dispatch := File.os("C:\\Code\\monoRepos\\analytics\\src\\conn\\nv5Facilityone\\fan\\Nv5FacilityoneDispatch.fan")
-    if (!dispatch.exists) return
-    uri := "file:///" + dispatch.osPath.replace("\\", "/")
-    build := diag.findBuildFan(uri)
-    Env.cur.err.printLine("[dump] uri=$uri")
-    Env.cur.err.printLine("[dump] buildFan=${build?.osPath}")
-    if (build != null)
-    {
-      dirs := diag.parseSrcDirs(build)
-      Env.cur.err.printLine("[dump] srcDirs=" + dirs.map |d->Str| { d.osPath })
-      deps := diag.extractDependenciesFromBuildFan(build)
-      Env.cur.err.printLine("[dump] depends=$deps")
-    }
-    errs := diag.compileAndGetErrors(uri, dispatch.readAllStr)
-    Env.cur.err.printLine("[dump] errCount=${errs.size}")
-    errs.each |e|
-    {
-      Env.cur.err.printLine("[dump] ${e.file}:${e.line} ${e.msg}")
-    }
-    // Always pass; this is a probe. Inspect dump lines.
-    verify(true)
-  }
-
   Void testProjectCompileSeesPeerType()
   {
     projectDir := tempDir()

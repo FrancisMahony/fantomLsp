@@ -52,7 +52,7 @@ class WorkspaceManager
   }
 
   **
-  ** Synchronous main-thread index (tests and synchronous paths, plan 7.3).
+  ** Synchronous main-thread index for tests and synchronous paths.
   ** Keys for which `skip` returns true (open documents) are not applied.
   **
   Void indexWorkspace(SymbolTable symbolTable, TypeResolver typeResolver, ReferenceIndex referenceIndex, |Str->Bool|? skip := null)
