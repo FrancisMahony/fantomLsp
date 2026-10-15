@@ -230,6 +230,29 @@ class TextDocumentManagerTest : Test
     verifyEq(doc.getWordAt(Position(0, 3)), "my_var")
   }
 
+  Void testGetWordAtQualifiedName()
+  {
+    doc := DocumentState("test://qname", 1, "sys::Str value")
+    [0, 1, 2, 3, 5, 6, 7, 8].each |col|
+    {
+      verifyEq(doc.getWordAt(Position(0, col)), "sys::Str")
+    }
+    verifyEq(doc.getWordAt(Position(0, 10)), "value")
+    verifyEq(doc.getWordAt(Position(0, 100)), "")
+    verifyEq(doc.getWordAt(Position(0, -1)), "")
+
+    doc.text = "sys:: Str"
+    verifyEq(doc.getWordAt(Position(0, 1)), "sys")
+    verifyEq(doc.getWordAt(Position(0, 7)), "Str")
+    doc.text = "sys ::Str"
+    verifyEq(doc.getWordAt(Position(0, 7)), "Str")
+    doc.text = "sys:Str"
+    verifyEq(doc.getWordAt(Position(0, 1)), "sys")
+    verifyEq(doc.getWordAt(Position(0, 5)), "Str")
+    doc.text = "sys::"
+    verifyEq(doc.getWordAt(Position(0, 1)), "sys")
+  }
+
   // ── DocumentState.offsetAt() ──────────────────────────────────────────────────
 
   Void testOffsetAtLineZero()
@@ -247,5 +270,34 @@ class TextDocumentManagerTest : Test
     doc := mgr.getDocument("file:///u.fan")
     verifyEq(doc.offsetAt(Position(1, 0)), 6)
     verifyEq(doc.offsetAt(Position(1, 2)), 8)
+  }
+
+  Void testOffsetAtCrlf()
+  {
+    mgr.open(makeItem("file:///crlf-off.fan", "abcde\r\nfghij"))
+    doc := mgr.getDocument("file:///crlf-off.fan")
+    verifyEq(doc.offsetAt(Position(0, 3)), 3)
+    verifyEq(doc.offsetAt(Position(1, 0)), 7)
+    verifyEq(doc.offsetAt(Position(1, 2)), 9)
+  }
+
+  Void testChangeRangeInsertCrlf()
+  {
+    mgr.open(makeItem("file:///crlf-ins.fan", "line one\r\nline two"))
+    range := LspRange(Position(0, 8), Position(0, 8))
+    evt := TextDocumentContentChangeEvent(range, " extra")
+    mgr.change("file:///crlf-ins.fan", 2, evt)
+    doc := mgr.getDocument("file:///crlf-ins.fan")
+    verifyEq(doc.text, "line one extra\r\nline two")
+  }
+
+  Void testChangeRangeDeleteCrlf()
+  {
+    mgr.open(makeItem("file:///crlf-del.fan", "aaa\r\nbbb\r\nccc"))
+    range := LspRange(Position(1, 0), Position(1, 3))
+    evt := TextDocumentContentChangeEvent(range, "")
+    mgr.change("file:///crlf-del.fan", 2, evt)
+    doc := mgr.getDocument("file:///crlf-del.fan")
+    verifyEq(doc.text, "aaa\r\n\r\nccc")
   }
 }

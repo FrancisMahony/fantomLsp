@@ -120,6 +120,18 @@ class JsonRpcTest : Test
     verifyNull(r["result"])
   }
 
+  Void testUnknownRequestMethodNotFound()
+  {
+    d := LspDispatcher(FantomLanguageServer())
+    r := d.dispatch(["jsonrpc": "2.0", "id": 11, "method": "textDocument/fooBar", "params": [Str:Obj?][:]])
+    verifyNotNull(r)
+    verifyEq(r["id"], 11)
+    err := r["error"] as [Str:Obj?]
+    verifyNotNull(err)
+    verifyEq(err["code"], -32601)
+    verify((err["message"] as Str).contains("textDocument/fooBar"))
+  }
+
   Void testMakeErrorResponse()
   {
     r := LspDispatcher.makeErrorResponse(3, -32603, "Internal error")
@@ -137,5 +149,50 @@ class JsonRpcTest : Test
     verifyEq(n["jsonrpc"], "2.0")
     verifyEq(n["method"], "textDocument/publishDiagnostics")
     verifyNotNull(n["params"])
+  }
+
+  Void testCancelRequestNotificationIsNoOp()
+  {
+    server := FantomLanguageServer()
+    d := LspDispatcher(server)
+    d.dispatch(["jsonrpc": "2.0", "method": "\$/cancelRequest", "params": ["id": 1]])
+    verifyEq(d.pendingNotifications.size, 0)
+    verify(server.isCancelled(1))
+    verifyFalse(server.isCancelled(1))
+  }
+
+  Void testCancelledHoverReturnsNull()
+  {
+    server := FantomLanguageServer()
+    server.cancelRequest(7)
+    verifyNull(server.hover([Str:Obj?][:], 7))
+  }
+
+  Void testCancelRequestAsRequestReturnsNullResult()
+  {
+    d := LspDispatcher(FantomLanguageServer())
+    r := d.dispatch(["jsonrpc": "2.0", "id": 9, "method": "\$/cancelRequest", "params": ["id": 1]])
+    verifyNotNull(r)
+    verifyEq(r["id"], 9)
+    verifyNull(r["result"])
+  }
+
+  Void testInitializedDoesNotBlockOnIndex()
+  {
+    d := LspDispatcher(FantomLanguageServer())
+    r := d.dispatch(["jsonrpc": "2.0", "method": "initialized", "params": [Str:Obj?][:]])
+    verifyNull(r)
+  }
+
+  Void testDrainOutgoingCopiesAndClears()
+  {
+    server := FantomLanguageServer()
+    verifyEq(server.drainOutgoing.size, 0)
+    note := LspDispatcher.makeNotification("textDocument/publishDiagnostics", ["uri": "file:///x.fan"])
+    server.enqueueOutgoing(note)
+    first := server.drainOutgoing
+    verifyEq(first.size, 1)
+    verifyEq(first[0]["method"], "textDocument/publishDiagnostics")
+    verifyEq(server.drainOutgoing.size, 0)
   }
 }

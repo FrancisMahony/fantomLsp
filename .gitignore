@@ -8,3 +8,6 @@ client/server/
 client/node_modules/
 client/out/
 client/*.vsix
+client/README.md
+client/CHANGELOG.md
+client/LICENSE

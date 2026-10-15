@@ -63,6 +63,13 @@ class AstNode
   LspRange range
   LspRange selectionRange
   Str? typeName
+  Str? usingPod
+  Str? usingType
+  Str? usingAlias
+  Bool isJava := false
+  // Explicit heritage only; no default superclass is inferred.
+  Str? baseType
+  Str[] mixins := [,]
   Str[] modifiers := [,]
   AstNode[] children := [,]
   AstNode? parent { get { &parent } set { &parent = it } }
@@ -70,6 +77,7 @@ class AstNode
   Str? returnType
   Str[]? params
   BodyCallRef[] bodyCallRefs := [,]
+  Int? scopeEndLine
 
   new make(AstNodeKind kind, Str name, LspRange range, LspRange selectionRange)
   {

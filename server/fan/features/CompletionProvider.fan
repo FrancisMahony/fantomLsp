@@ -10,7 +10,7 @@ class CompletionProvider : LspUtils
     "while",
   ]
 
-  Obj? complete(DocumentState doc, ParseResult parseResult, Position pos)
+  Obj? complete(DocumentState doc, ParseResult parseResult, Position pos, SymbolTable symbolTable := SymbolTable())
   {
     line := doc.getLine(pos.line) ?: ""
 
@@ -46,7 +46,7 @@ class CompletionProvider : LspUtils
     }
     else
     {
-      items = plainCompletions(word, doc, parseResult, podNames, pos.line)
+      items = plainCompletions(word, doc, parseResult, podNames, pos.line, symbolTable)
     }
 
     return ["isIncomplete": false, "items": items]
@@ -57,6 +57,23 @@ class CompletionProvider : LspUtils
   private Obj? usingCompletions(Str prefix)
   {
     items := [Str:Obj?][,]
+    colonIdx := prefix.index("::")
+    if (colonIdx != null)
+    {
+      podName := prefix[0..<colonIdx]
+      typePrefix := prefix[colonIdx+2..-1]
+      pod := Pod.find(podName, false)
+      if (pod != null)
+      {
+        pod.types.each |t|
+        {
+          if (isSyntheticName(t.name)) return
+          if (typePrefix.isEmpty || t.name.startsWith(typePrefix))
+            items.add(CompletionItem("${podName}::${t.name}", CompletionItem.classKind).toMap)
+        }
+      }
+      return ["isIncomplete": false, "items": items]
+    }
     Pod.list.each |pod|
     {
       if (!isSyntheticName(pod.name) && pod.name.startsWith(prefix))
@@ -123,7 +140,9 @@ class CompletionProvider : LspUtils
     }
 
     // General: infer receiver type, then show its slots
-    typeName := inferVarType(doc, receiver, parseResult, podNames)
+    enclosing := findEnclosingLocal(parseResult, receiver, Position(line, 0))
+    typeName := enclosing?.typeName
+    if (typeName == null) typeName = inferVarType(doc, receiver, parseResult, podNames)
     if (typeName == null) typeName = receiver
 
     local := findLocalType(parseResult, typeName)
@@ -154,18 +173,26 @@ class CompletionProvider : LspUtils
   // ── Plain completion ────────────────────────────────────────────────────────
 
   private [Str:Obj?][] plainCompletions(Str word, DocumentState doc,
-                                         ParseResult parseResult, Str[] podNames, Int curLine)
+                                         ParseResult parseResult, Str[] podNames, Int curLine,
+                                         SymbolTable symbolTable)
   {
     items := [Str:Obj?][,]
     if (word.isEmpty) return items
 
     lw := word.lower
 
-    // Scope-aware local variable names (only lines above cursor)
-    collectLocalVarNames(doc, curLine).each |name|
+    pos := Position(curLine, 0)
+    methodSlot := findEnclosingSlot(parseResult, pos)
+    if (methodSlot != null)
     {
-      if (name.lower.startsWith(lw))
-        items.add(CompletionItem(name, CompletionItem.variable).toMap)
+      methodSlot.children.each |c|
+      {
+        if (c.kind != AstNodeKind.localDef) return
+        if (posBefore(pos, c.selectionRange.start)) return
+        if (c.scopeEndLine != null && curLine > c.scopeEndLine) return
+        if (c.name.lower.startsWith(lw))
+          items.add(CompletionItem(c.name, CompletionItem.variable).toMap)
+      }
     }
 
     // Local types and their slots from the parsed AST
@@ -204,17 +231,49 @@ class CompletionProvider : LspUtils
       }
     }
 
-    // Pod type names (skip compiler-generated synthetic types)
-    podNames.each |pn|
+    seen := Str[,]
+    items.each |item|
     {
-      pod := Pod.find(pn, false)
-      if (pod == null) return
+      lab := item["label"] as Str ?: ""
+      kindVal := item["kind"]
+      seen.add(lab + "|" + kindVal)
+    }
+    addIfUnseen := |Str label, Obj? kind, [Str:Obj?] item|
+    {
+      key := "${label}|${kind}"
+      if (seen.contains(key)) return
+      seen.add(key)
+      items.add(item)
+    }
+
+    entries := symbolTable.allEntries
+    for (ei := 0; ei < entries.size; ei++)
+    {
+      node := entries[ei].node
+      if (isSyntheticName(node.name)) continue
+      if (!node.name.lower.startsWith(lw)) continue
+      addIfUnseen(node.name, completionKindFor(node), makeLocalItem(node))
+    }
+
+    addPodTypes := |Pod pod|
+    {
       pod.types.each |t|
       {
         if (isSyntheticName(t.name)) return
-        if (t.name.lower.startsWith(lw))
-          items.add(makeReflectedTypeItem(t))
+        if (!t.name.lower.startsWith(lw)) return
+        addIfUnseen(t.name, CompletionItem.classKind, makeReflectedTypeItem(t, parseResult, podNames))
       }
+    }
+    podNames.each |pn|
+    {
+      pod := Pod.find(pn, false)
+      if (pod != null) addPodTypes(pod)
+    }
+    Env.cur.findAllPodNames.each |n|
+    {
+      if (podNames.contains(n)) return
+      pod := Pod.find(n, false)
+      if (pod != null) addPodTypes(pod)
     }
 
     // Keywords
@@ -228,25 +287,6 @@ class CompletionProvider : LspUtils
   }
 
   // ── Context helpers ─────────────────────────────────────────────────────────
-
-  // Only collect variable names from lines at or above the cursor
-  private Str[] collectLocalVarNames(DocumentState doc, Int beforeLine)
-  {
-    names := Str[,]
-    lines := doc.lines
-    for (i := 0; i < lines.size && i <= beforeLine; i++)
-    {
-      trimmed := lines[i].trim
-      idx := trimmed.index(":=")
-      if (idx == null || idx == 0) continue
-      lhs := trimmed[0..<idx].trim
-      tokens := lhs.split
-      name := tokens.last ?: ""
-      if (name.isEmpty || !name[0].isLower) continue
-      if (!names.contains(name)) names.add(name)
-    }
-    return names
-  }
 
   // Find the top-level class/mixin/enum node whose range contains the given line
   private AstNode? findEnclosingClass(ParseResult parseResult, Int line)
@@ -339,21 +379,25 @@ class CompletionProvider : LspUtils
 
   // ── Item builders ───────────────────────────────────────────────────────────
 
-  private [Str:Obj?] makeLocalItem(AstNode node)
+  private Int completionKindFor(AstNode node)
   {
-    Int kind := CompletionItem.text
     switch (node.kind)
     {
-      case AstNodeKind.classDef:      kind = CompletionItem.classKind
-      case AstNodeKind.mixinDef:      kind = CompletionItem.interfaceKind
-      case AstNodeKind.enumDef:       kind = CompletionItem.classKind
-      case AstNodeKind.facetClassDef: kind = CompletionItem.classKind
-      case AstNodeKind.methodDef:     kind = CompletionItem.method
-      case AstNodeKind.ctorDef:       kind = CompletionItem.constructor
-      case AstNodeKind.fieldDef:      kind = CompletionItem.field
-      case AstNodeKind.enumValDef:    kind = CompletionItem.enumMember
-      default:                        kind = CompletionItem.text
+      case AstNodeKind.classDef:      return CompletionItem.classKind
+      case AstNodeKind.mixinDef:      return CompletionItem.interfaceKind
+      case AstNodeKind.enumDef:       return CompletionItem.classKind
+      case AstNodeKind.facetClassDef: return CompletionItem.classKind
+      case AstNodeKind.methodDef:     return CompletionItem.method
+      case AstNodeKind.ctorDef:       return CompletionItem.constructor
+      case AstNodeKind.fieldDef:      return CompletionItem.field
+      case AstNodeKind.enumValDef:    return CompletionItem.enumMember
+      default:                        return CompletionItem.text
     }
+  }
+
+  private [Str:Obj?] makeLocalItem(AstNode node)
+  {
+    Int kind := completionKindFor(node)
     detail := formatLocalSig(node)
 
     // Snippet: place cursor inside parens for methods/ctors
@@ -362,16 +406,35 @@ class CompletionProvider : LspUtils
     if (node.kind == AstNodeKind.methodDef || node.kind == AstNodeKind.ctorDef)
     {
       params := node.params
-      insertText = params == null || params.isEmpty ? node.name + "()" : node.name + "(\$0)"
+      insertText = snippetForParams(node.name, params)
       insertFmt = 2
     }
 
     return CompletionItem(node.name, kind, detail, node.doc, insertText, insertFmt).toMap
   }
 
-  private [Str:Obj?] makeReflectedTypeItem(Type t)
+  private [Str:Obj?] makeReflectedTypeItem(Type t, ParseResult parseResult, Str[] podNames)
   {
-    return CompletionItem(t.name, CompletionItem.classKind, formatTypeSig(t), t.doc).toMap
+    m := CompletionItem(t.name, CompletionItem.classKind, formatTypeSig(t), t.doc).toMap
+    podName := t.pod.name
+    if (podName != "sys" && !podNames.contains(podName))
+    {
+      insertLine := usingInsertLine(parseResult)
+      range := LspRange(Position(insertLine, 0), Position(insertLine, 0))
+      m["additionalTextEdits"] = [["range": range.toMap, "newText": "using ${podName}\n"]]
+    }
+    return m
+  }
+
+  private Int usingInsertLine(ParseResult parseResult)
+  {
+    last := -1
+    parseResult.nodes.each |node|
+    {
+      if (node.kind == AstNodeKind.usingDef && node.range.end.line > last)
+        last = node.range.end.line
+    }
+    return last < 0 ? 0 : last + 1
   }
 
   private [Str:Obj?] makeReflectedSlotItem(Slot slot)
@@ -386,7 +449,8 @@ class CompletionProvider : LspUtils
       m := (Method)slot
       kind = m.isCtor ? CompletionItem.constructor : CompletionItem.method
       detail = formatMethodSig(m)
-      insertText = m.params.isEmpty ? slot.name + "()" : slot.name + "(\$0)"
+      names := m.params.map |p| { p.name }
+      insertText = snippetForParams(slot.name, names)
       insertFmt = 2
     }
     else
@@ -410,5 +474,20 @@ class CompletionProvider : LspUtils
     insert := sig + "\n{\n  \$0\n}"
 
     return CompletionItem(m.name, CompletionItem.method, sig, m.doc, insert, 2).toMap
+  }
+
+  private Str snippetForParams(Str name, Str[]? params)
+  {
+    if (params == null || params.isEmpty) return name + "()"
+    buf := StrBuf().add(name).add("(")
+    params.each |p, i|
+    {
+      if (i > 0) buf.add(", ")
+      ident := lastIdent(p)
+      if (ident.isEmpty) ident = p
+      buf.add("\$").add(i + 1).add(":").add(ident)
+    }
+    buf.add(")")
+    return buf.toStr
   }
 }

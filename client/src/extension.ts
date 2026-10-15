@@ -6,15 +6,20 @@ import {
   ExtensionContext,
   window,
   commands,
+  StatusBarAlignment,
+  StatusBarItem,
 } from "vscode";
 import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
   TransportKind,
+  Position as ProtocolPosition,
+  Location as ProtocolLocation,
 } from "vscode-languageclient/node";
 
 let client: LanguageClient | undefined;
+let statusBarItem: StatusBarItem | undefined;
 
 function findFantomHome(): string | undefined {
   const config = workspace.getConfiguration("fantom");
@@ -40,7 +45,7 @@ function findJavaExecutable(fanHome: string): string {
       return javaExe;
     }
   }
-  console.log()
+
   const fanJava = path.join(
     fanHome,
     "bin",
@@ -66,6 +71,43 @@ function findSysJar(fanHome: string): string | undefined {
   return undefined;
 }
 
+// The folder itself plus exactly three ancestors, independently for each root.
+// Do not descend into source trees or assume every workspace is an env root.
+function workspaceEnvRoots(): string[] {
+  const roots: string[] = [];
+  for (const folder of workspace.workspaceFolders ?? []) {
+    if (folder.uri.scheme !== "file") continue;
+    let dir = folder.uri.fsPath;
+    for (let level = 0; level <= 3; level++) {
+      try {
+        const lib = path.join(dir, "lib", "fan");
+        const hasPods = fs.existsSync(lib) && fs.statSync(lib).isDirectory() &&
+          fs.readdirSync(lib, { withFileTypes: true }).some(f => f.isFile() && f.name.endsWith(".pod"));
+        const props = path.join(dir, "fan.props");
+        if ((fs.existsSync(props) && fs.statSync(props).isFile()) || hasPods) roots.push(dir);
+      } catch {
+        // Inaccessible ancestor is not evidence of an environment root.
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  return roots;
+}
+
+function configuredEnvPath(): string[] {
+  const configured = workspace.getConfiguration("fantom").get<string[]>("envPath") ?? [];
+  const paths = configured;
+  const seen = new Set<string>();
+  return paths.filter(p => p.trim().length > 0 && path.isAbsolute(p)).map(p => path.resolve(p)).filter(p => {
+    const key = os.platform() === "win32" ? p.toLowerCase() : p;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function activate(context: ExtensionContext): Promise<void> {
   const fanHome = findFantomHome();
   if (!fanHome) {
@@ -80,6 +122,15 @@ export async function activate(context: ExtensionContext): Promise<void> {
 
   const sysJar = findSysJar(fanHome);
   const javaExe = findJavaExecutable(fanHome);
+  const envPath = configuredEnvPath();
+  const runtimePath = path.join(context.extensionPath, "server");
+  // Overwrite, never append inherited FAN_ENV_PATH. Strip case variants too:
+  // Windows environment keys are case insensitive. Installed home is PathEnv's
+  // automatic fallback; workspace pods must never enter the JVM search path.
+  const launchEnv = { ...process.env };
+  for (const key of Object.keys(launchEnv)) {
+    if (["FAN_ENV", "FAN_ENV_PATH"].includes(key.toUpperCase())) delete launchEnv[key];
+  }
 
   let serverOptions: ServerOptions;
 
@@ -98,10 +149,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
       args: javaArgs,
       options: {
         env: {
-          ...process.env,
+          ...launchEnv,
           FAN_HOME: fanHome,
           FAN_ENV: 'util::PathEnv',
-          FAN_ENV_PATH: path.resolve(context.extensionPath, '..', 'server'),
+          FAN_ENV_PATH: runtimePath,
         },
       },
       transport: TransportKind.stdio,
@@ -117,11 +168,11 @@ export async function activate(context: ExtensionContext): Promise<void> {
       args: ["fantomLsp::Main"],
       options: {
         env: {
-          ...process.env,
+          ...launchEnv,
           FAN_HOME: fanHome,
           JAVA_TOOL_OPTIONS: javaOpts,
           FAN_ENV: 'util::PathEnv',
-          FAN_ENV_PATH: path.resolve(context.extensionPath, '..', 'server'),
+          FAN_ENV_PATH: runtimePath,
         },
         shell: isWindows,
       },
@@ -133,6 +184,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
   launchChannel.appendLine(`[launch] fanHome:  ${fanHome}`);
   launchChannel.appendLine(`[launch] sysJar:   ${sysJar ?? "(not found, using fan.bat)"}`);
   launchChannel.appendLine(`[launch] javaExe:  ${javaExe}`);
+  launchChannel.appendLine(`[launch] runtimePath: ${runtimePath} (installed fallback: ${fanHome})`);
+  launchChannel.appendLine(`[launch] inherited FAN_ENV_PATH ignored: ${process.env["FAN_ENV_PATH"] ?? "(unset)"}`);
+  launchChannel.appendLine(`[launch] configured lookup roots: ${envPath.join(path.delimiter)}`);
+  launchChannel.appendLine(`[launch] detected lookup roots: ${workspaceEnvRoots().join(path.delimiter)}`);
   if (sysJar) {
     const opts = serverOptions as { command: string; args: string[] };
     launchChannel.appendLine(`[launch] command:  ${opts.command} ${opts.args.join(" ")}`);
@@ -140,19 +195,43 @@ export async function activate(context: ExtensionContext): Promise<void> {
     const opts = serverOptions as { command: string; args: string[] };
     launchChannel.appendLine(`[launch] command:  ${opts.command} ${opts.args.join(" ")}`);
   }
-  launchChannel.show(true);
+  launchChannel.appendLine("[launch] server starting");
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "fantom" }],
     synchronize: {
-      fileEvents: workspace.createFileSystemWatcher("**/*.fan"),
+      fileEvents: [
+        workspace.createFileSystemWatcher("**/*.fan"),
+        workspace.createFileSystemWatcher("**/*.fwt"),
+      ],
       configurationSection: "fantom"
+    },
+    initializationOptions: {
+      envPath,
+      codeLens: { enabled: config.get<boolean>("codeLens.enabled") ?? true },
+      semanticIndex: { backgroundCompile: config.get<boolean>("semanticIndex.backgroundCompile") ?? true },
+      // Detection is recomputed server-side from current workspaceFolders so
+      // removed folders cannot persist in the configured envPath list.
+      maxFiles: config.get<number>("maxFiles") ?? 0,
+      excludeDirs: config.get<string[]>("excludeDirs") ?? [
+        ".git",
+        "node_modules",
+        ".hg",
+        "build",
+        "out",
+        "dist",
+        ".svn",
+        "__pycache__",
+        "lib",
+        "temp",
+        "tmp",
+      ],
     },
     outputChannelName: "Fantom Language Server",
     middleware: {
       provideDocumentFormattingEdits: async (document, options, token, next) => {
         const config = workspace.getConfiguration("fantom.formatting");
-        const bracketStyle = config.get<string>("bracketStyle") || "preserve";
+        const bracketStyle = config.get<string>("bracketStyle") || "allman";
         const customOptions = {
           ...options,
           bracketStyle: bracketStyle
@@ -169,7 +248,23 @@ export async function activate(context: ExtensionContext): Promise<void> {
     clientOptions
   );
 
+  statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
+  statusBarItem.text = "Fantom LS";
+  statusBarItem.tooltip = "Fantom Language Server";
+  statusBarItem.command = "fantom.restartServer";
+  context.subscriptions.push(statusBarItem);
+
   context.subscriptions.push(
+    commands.registerCommand("fantom.showReferences", async (uri: string, pos: ProtocolPosition, locs: ProtocolLocation[]) => {
+      if (!client) return;
+      const converter = client.protocol2CodeConverter;
+      await commands.executeCommand(
+        "editor.action.showReferences",
+        converter.asUri(uri),
+        converter.asPosition(pos),
+        locs.map(loc => converter.asLocation(loc))
+      );
+    }),
     commands.registerCommand("fantom.restartServer", async () => {
       if (client) {
         await client.restart();
@@ -178,9 +273,25 @@ export async function activate(context: ExtensionContext): Promise<void> {
     })
   );
 
-  await client.start();
+  try {
+    await client.start();
+    statusBarItem.show();
+  } catch (err) {
+    const choice = await window.showErrorMessage(
+      `Fantom Language Server failed to start: ${err instanceof Error ? err.message : String(err)}`,
+      "Open Launch Log"
+    );
+    if (choice === "Open Launch Log") {
+      launchChannel.show(true);
+    }
+  }
 
   workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration("fantom.home") || e.affectsConfiguration("fantom.javaOpts")) {
+      window.showInformationMessage("Fantom Language Server settings changed.", "Restart").then((choice) => {
+        if (choice === "Restart") commands.executeCommand("fantom.restartServer");
+      });
+    }
     if (e.affectsConfiguration("fantom.formatting.bracketStyle")) {
       client?.sendNotification("workspace/didChangeConfiguration", {
         settings: {
@@ -196,6 +307,8 @@ export async function activate(context: ExtensionContext): Promise<void> {
 }
 
 export async function deactivate(): Promise<void> {
+  statusBarItem?.hide();
+  statusBarItem = undefined;
   if (client) {
     await client.stop();
     client = undefined;

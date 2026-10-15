@@ -60,6 +60,23 @@ class CodeActionProviderTest : Test
     verify(titles.any |t| { (t as Str)?.contains("Uncomment") == true })
   }
 
+  Void testUncommentReplacesFullLineNotSelection()
+  {
+    src := "  // class Foo {}"
+    range := LspRange(Position(0, 4), Position(0, 6))
+    result := actions(src, range)
+    action := result.find |a| { (a["title"] as Str)?.contains("Uncomment") == true }
+    verifyNotNull(action)
+    edit := action["edit"] as [Str:Obj?]
+    changes := edit["changes"] as [Str:Obj?]
+    edits := changes["file:///test.fan"] as [Str:Obj?][]
+    r := edits[0]["range"] as [Str:Obj?]
+    start := r["start"] as [Str:Obj?]
+    end := r["end"] as [Str:Obj?]
+    verifyEq(start["character"], 0)
+    verifyEq(end["character"], src.size)
+  }
+
   Void testNoUncommentOnNonComment()
   {
     src := "class Foo {}"
@@ -105,5 +122,18 @@ class CodeActionProviderTest : Test
     result := actions(src, zeroRange, context)
     titles := result.map |a| { a["title"] }
     verify(titles.any |t| { (t as Str)?.startsWith("Add 'using ") == true })
+  }
+
+  Void testOrganizeUsings()
+  {
+    src := "using util\nusing sys::Regex\nusing concurrent\nclass Foo { Regex r }"
+    result := actions(src, zeroRange)
+    action := result.find |a| { a["title"] == "Organize usings" }
+    verifyNotNull(action)
+    verifyEq(action["kind"], "source.organizeImports")
+    edit := action["edit"] as [Str:Obj?]
+    changes := edit["changes"] as [Str:Obj?]
+    edits := changes["file:///test.fan"] as [Str:Obj?][]
+    verifyEq(edits[0]["newText"], "using sys::Regex\n")
   }
 }

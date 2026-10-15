@@ -226,15 +226,15 @@ class CompletionProviderTest : Test
 
   Void testLocalVariableAppearsInCompletion()
   {
-    src := "myVar := \"hello\"\nmyV"
-    items := complete(src, Position(1, 3))
+    src := "class Foo\n{\n  Void run()\n  {\n    myVar := \"hello\"\n    myV\n  }\n}"
+    items := complete(src, Position(5, 7))
     verify(hasLabel(items, "myVar"))
   }
 
   Void testLocalVariableKindIsVariable()
   {
-    src := "theValue := 42\ntheV"
-    items := complete(src, Position(1, 4))
+    src := "class Foo\n{\n  Void run()\n  {\n    theValue := 42\n    theV\n  }\n}"
+    items := complete(src, Position(5, 8))
     item := items.find |m| { m["label"] == "theValue" }
     verifyNotNull(item)
     verifyEq(item["kind"], CompletionItem.variable)
@@ -242,9 +242,8 @@ class CompletionProviderTest : Test
 
   Void testLocalVariableScopeAwareNotBelowCursor()
   {
-    // Variable defined BELOW cursor should NOT appear
-    src := "early\nmyLater := \"x\""
-    items := complete(src, Position(0, 5))
+    src := "class Foo\n{\n  Void run()\n  {\n    early\n    myLater := \"x\"\n  }\n}"
+    items := complete(src, Position(4, 9))
     verifyFalse(hasLabel(items, "myLater"))
   }
 
@@ -259,7 +258,20 @@ class CompletionProviderTest : Test
     // Methods with params get a snippet
     insertText := item["insertText"] as Str
     if (insertText != null)
+    {
       verify(insertText.contains("("))
+      verify(insertText.contains("\$1"))
+    }
+  }
+
+  Void testUsingColonColonSuggestsTypes()
+  {
+    src := "using sys::S"
+    doc := makeDoc(src)
+    r := parse(src)
+    result := provider.complete(doc, r, Position(0, src.size)) as [Str:Obj?]
+    items := result["items"] as [Str:Obj?][]
+    verify(hasLabel(items, "sys::Str"))
   }
 
   // ── isIncomplete flag ─────────────────────────────────────────────────────────
@@ -271,5 +283,82 @@ class CompletionProviderTest : Test
     r := parse(src)
     result := provider.complete(doc, r, Position(1, 3)) as [Str:Obj?]
     verifyEq(result["isIncomplete"], false)
+  }
+
+  // ── cross-file completion via SymbolTable ─────────────────────────────────────
+
+  Void testNoDuplicateTypeFromSymbolTableAndPod()
+  {
+    haystack := Pod.find("haystack", false)
+    if (haystack == null || haystack.type("Etc", false) == null) return
+    otherSrc := "class Etc\n{\n}"
+    table := SymbolTable()
+    table.update("file:///Etc.fan", parser.parse("file:///Etc.fan", otherSrc))
+    src := "class C {}\nEtc"
+    doc := makeDoc(src)
+    r := parse(src)
+    result := provider.complete(doc, r, Position(1, 3), table) as [Str:Obj?]
+    items := result["items"] as [Str:Obj?][]
+    etc := items.findAll |m| { m["label"] == "Etc" && m["kind"] == CompletionItem.classKind }
+    verifyEq(etc.size, 1)
+  }
+
+  Void testCompleteIncludesTypeFromOtherFile()
+  {
+    otherSrc := "class OtherWidget\n{\n}"
+    table := SymbolTable()
+    table.update("file:///other.fan", parser.parse("file:///other.fan", otherSrc))
+
+    src := "Oth"
+    doc := makeDoc(src)
+    r := parse(src)
+    result := provider.complete(doc, r, Position(0, 3), table) as [Str:Obj?]
+    items := result["items"] as [Str:Obj?][]
+    verify(hasLabel(items, "OtherWidget"))
+  }
+
+  Void testPodTypeAddsUsingWhenMissing()
+  {
+    src := "class C {}\nActor"
+    items := complete(src, Position(1, 5))
+    item := items.find |m| { m["label"] == "Actor" }
+    verifyNotNull(item)
+    edits := item["additionalTextEdits"] as List
+    verifyNotNull(edits)
+    verify(edits.size > 0)
+    first := edits[0] as [Str:Obj?]
+    verifyEq(first["newText"], "using concurrent\n")
+  }
+
+  Void testPodTypeNoUsingWhenAlreadyImported()
+  {
+    src := "using concurrent\nclass C {}\nActor"
+    items := complete(src, Position(2, 5))
+    item := items.find |m| { m["label"] == "Actor" }
+    verifyNotNull(item)
+    verifyFalse(item.containsKey("additionalTextEdits"))
+  }
+
+  Void testSysTypeDoesNotAddUsing()
+  {
+    src := "class C {}\nStr"
+    items := complete(src, Position(1, 3))
+    item := items.find |m| { m["label"] == "Str" }
+    verifyNotNull(item)
+    verifyFalse(item.containsKey("additionalTextEdits"))
+  }
+
+  Void testResolveStrItemGetsDocs()
+  {
+    server := FantomLanguageServer()
+    item := ["label": "Str"]
+    resolved := server.completionResolve(item) as [Str:Obj?]
+    verifyNotNull(resolved)
+    doc := resolved["documentation"] as [Str:Obj?]
+    verifyNotNull(doc)
+    verifyEq(doc["kind"], "markdown")
+    value := doc["value"] as Str
+    verifyNotNull(value)
+    verify(value.size > 0)
   }
 }

@@ -1,3 +1,5 @@
+using compiler
+
 class DiagnosticsProviderTest : Test
 {
   private TextDocumentManager docManager := TextDocumentManager()
@@ -184,5 +186,85 @@ class DiagnosticsProviderTest : Test
     result := parse(src)
     diags := provider.computeDiagnostics("file:///test.fan", result)
     verifyEq(diags.size, 0)
+  }
+
+  Void testUnusedUsingWarning()
+  {
+    src := "using util\nclass Foo {}"
+    docManager.open(TextDocumentItem("file:///test.fan", "fantom", 1, src))
+    result := parse(src)
+    diags := provider.computeParserDiagnostics("file:///test.fan", result)
+    warn := diags.find |d| { d.severity == Diagnostic.warning && d.message.contains("Unused using") }
+    verifyNotNull(warn)
+  }
+
+  Void testUnusedLocalWarning()
+  {
+    src :=
+      "class Foo
+       {
+         Void foo()
+         {
+           x := 1
+         }
+       }"
+    docManager.open(TextDocumentItem("file:///test.fan", "fantom", 1, src))
+    result := parse(src)
+    diags := provider.computeParserDiagnostics("file:///test.fan", result)
+    warn := diags.find |d| { d.message == "Unused local 'x'" }
+    verifyNotNull(warn)
+    verifyEq(warn.severity, Diagnostic.warning)
+    verifyEq(warn.source, "fantomLsp")
+  }
+
+  Void testUsedLocalNoWarning()
+  {
+    src :=
+      "class Foo
+       {
+         Void foo()
+         {
+           x := 1
+           echo(x)
+         }
+       }"
+    docManager.open(TextDocumentItem("file:///test.fan", "fantom", 1, src))
+    result := parse(src)
+    diags := provider.computeParserDiagnostics("file:///test.fan", result)
+    warn := diags.find |d| { d.message == "Unused local 'x'" }
+    verifyNull(warn)
+  }
+
+  Void testDefaultParamNullNotUnusedLocal()
+  {
+    src :=
+      "class Foo
+       {
+         static Grid nvCmmsReadAll(Obj conn, DateTime? modStart := null, Number? limit := null)
+         {
+           return echo(conn, modStart, limit)
+         }
+       }"
+    docManager.open(TextDocumentItem("file:///test.fan", "fantom", 1, src))
+    result := parse(src)
+    diags := provider.computeParserDiagnostics("file:///test.fan", result)
+    verifyNull(diags.find |d| { d.message.contains("Unused local 'null'") })
+    verifyNull(diags.find |d| { d.message.contains("Unused local 'modStart'") })
+    verifyNull(diags.find |d| { d.message.contains("Unused local 'limit'") })
+  }
+
+  Void testCompilerCoordinatesAreOneBasedAndSourceStable()
+  {
+    errors := [CompilerErr("Bad return", Loc("sample.fan", 2, 3)),
+      CompilerErr("Unknown", Loc("sample.fan"))]
+    diags := DiagnosticsProvider.compilerDiagnosticsFor("class A\n  wrong\n", errors)
+    verifyEq(diags[0].range.start.line, 1)
+    verifyEq(diags[0].range.start.character, 2)
+    verifyEq(diags[0].range.end.line, 1)
+    verifyEq(diags[0].range.end.character, 7)
+    verifyEq(diags[0].message, "Bad return")
+    verifyEq(diags[0].source, "fantomCompiler")
+    verifyEq(diags[1].range.start.line, 0)
+    verifyEq(diags[1].range.start.character, 0)
   }
 }

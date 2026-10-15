@@ -7,10 +7,14 @@ class CompilerDiagnostics
     try
     {
       buildFan := findBuildFan(uri)
-      if (buildFan != null)
-        return compileProjectFile(uri, buildFan)
-      else
-        return compileStandaloneFile(sourceCode)
+      key := UriKey.canonical(uri)
+      files := buildFan == null ? Str[key] : sourceFiles(buildFan)
+      name := buildFan == null ? "lspStandalone" : parsePodName(buildFan)
+      if (name == null) throw ArgErr("build.fan has no literal podName: $buildFan")
+      req := SemanticCompileRequest(1, buildFan == null ? key : WorkspaceManager.fileToUri(buildFan),
+        name, buildFan, files, [key: sourceCode], [key: 1])
+      compiler := SemanticCompile().attempt(req, req.texts)
+      return filterErrorsForFile(compiler.errs, key)
     }
     catch (Err e)
     {
@@ -19,82 +23,121 @@ class CompilerDiagnostics
     }
   }
 
-  private CompilerErr[] compileProjectFile(Str uri, File buildFan)
+  internal Str[] sourceFiles(File buildFan)
   {
-    try
+    files := File[,]
+    parseSrcDirs(buildFan).each |dir|
     {
-      srcDirs := parseSrcDirs(buildFan)
-      if (srcDirs.isEmpty)
-      {
-        Env.cur.err.printLine("[CompilerDiagnostics] No srcDirs found in build.fan")
-        return CompilerErr[,]
-      }
-
-      fanFiles := File[,]
-      srcDirs.each |dir|
-      {
-        if (dir.exists && dir.isDir)
-          dir.list.each |f| { if (f.ext == "fan") fanFiles.add(f) }
-      }
-
-      if (fanFiles.isEmpty)
-      {
-        Env.cur.err.printLine("[CompilerDiagnostics] No .fan files found in srcDirs")
-        return CompilerErr[,]
-      }
-
-      input := CompilerInput()
-      input.podName = "temp"
-      input.summary = "LSP compilation"
-      input.version = Version("1.0")
-      input.baseDir = buildFan.parent
-      input.srcFiles = fanFiles.map |f -> Uri| { f.uri }
-      input.mode = CompilerInputMode.file
-      input.output = CompilerOutputMode.transientPod
-      input.depends = extractDependenciesFromBuildFan(buildFan)
-
-      silentBuf := Buf()
-      input.log = CompilerLog(silentBuf.out)
-
-      c := Compiler(input)
-      try { c.compile } catch (CompilerErr e) {} catch (Err e) {}
-
-      return filterErrorsForFile(c.errs, uri)
+      if (dir.exists && dir.isDir) collectFanFiles(dir, files)
     }
-    catch (Err e)
+    return files.map |f->Str| { WorkspaceManager.fileToUri(f) }.unique.sort
+  }
+
+  ** Unique ident for CompilerInput.podName (avoid colliding transient pods).
+  internal static Str uniqueTransientPodName()
+  {
+    raw := Uuid.make.toStr.replace("-", "")
+    if (raw.size > 24) raw = raw[0..<24]
+    return "lspTemp" + raw
+  }
+
+  private Void collectFanFiles(File dir, File[] acc)
+  {
+    dir.list.each |f|
     {
-      Env.cur.err.printLine("[CompilerDiagnostics] Project compile error: $e")
-      return CompilerErr[,]
+      if (!f.isDir && f.ext == "fan")
+        acc.add(f)
     }
   }
 
-  private CompilerErr[] compileStandaloneFile(Str sourceCode)
+  ** Read the literal podName assignment without executing the build script.
+  internal Str? parsePodName(File buildFan)
   {
     try
     {
-      input := CompilerInput()
-      input.podName = "temp"
-      input.summary = "LSP compilation"
-      input.version = Version("1.0")
-      input.srcStr = sourceCode
-      input.srcStrLoc = Loc.makeUninit
-      input.mode = CompilerInputMode.str
-      input.output = CompilerOutputMode.transientPod
-      input.depends = extractDependenciesFromSource(sourceCode)
-
-      silentBuf := Buf()
-      input.log = CompilerLog(silentBuf.out)
-
-      c := Compiler(input)
-      try { c.compile } catch (CompilerErr e) {} catch (Err e) {}
-
-      return c.errs
+      masks := maskBuildComments(buildFan.readAllStr)
+      matcher := Regex("(?m)^\\s*(podName)\\s*=\\s*\"([^\"]+)\"").matcher(masks[0])
+      while (matcher.find)
+      {
+        // Strings are preserved for the RHS, but are not executable assignments.
+        if (masks[1][matcher.start(1)] == 'p') return matcher.group(2)
+      }
     }
-    catch (Err e)
+    catch (Err e) { Env.cur.err.printLine("[CompilerDiagnostics] Error parsing podName: $e") }
+    return null
+  }
+
+  ** Equal-length lexical views: comments masked / comments and literals masked.
+  ** Keep newlines and offsets, and never treat comment markers inside literals
+  ** as comments. The second view guards matches inside multiline string text.
+  private Str[] maskBuildComments(Str text)
+  {
+    comments := StrBuf()
+    code := StrBuf()
+    blockDepth := 0
+    lineComment := false
+    quote := 0
+    triple := false
+    lineStart := true
+    i := 0
+    while (i < text.size)
     {
-      Env.cur.err.printLine("[CompilerDiagnostics] Standalone compile error: $e")
-      return CompilerErr[,]
+      ch := text[i]
+      next := i + 1 < text.size ? text[i+1] : 0
+      count := 1
+      comment := blockDepth > 0 || lineComment
+      literal := quote != 0
+      if (lineComment)
+      {
+        if (ch == '\n' || ch == '\r') lineComment = false
+      }
+      else if (blockDepth > 0)
+      {
+        if (ch == '/' && next == '*') { blockDepth++; count = 2 }
+        else if (ch == '*' && next == '/') { blockDepth--; count = 2 }
+      }
+      else if (quote != 0)
+      {
+        if (ch == '\\' && i + 1 < text.size) count = 2
+        else if (triple)
+        {
+          if (ch == '"' && next == '"' && i + 2 < text.size && text[i+2] == '"')
+          { quote = 0; triple = false; count = 3 }
+        }
+        else if (ch == quote) quote = 0
+      }
+      else if (ch == '/' && (next == '/' || next == '*'))
+      {
+        comment = true
+        count = 2
+        if (next == '/') lineComment = true
+        else blockDepth = 1
+      }
+      else if (lineStart && ch == '*' && next == '*')
+      {
+        comment = true
+        lineComment = true
+        count = 2
+      }
+      else if (ch == '"' || ch == '\'' || ch == '`')
+      {
+        literal = true
+        quote = ch
+        triple = ch == '"' && next == '"' && i + 2 < text.size && text[i+2] == '"'
+        if (triple) count = 3
+      }
+      for (j := 0; j < count; j++)
+      {
+        c := text[i+j]
+        newline := c == '\n' || c == '\r'
+        if (newline) lineStart = true
+        else if (!c.isSpace) lineStart = false
+        comments.addChar(comment && !newline ? ' ' : c)
+        code.addChar((comment || literal) && !newline ? ' ' : c)
+      }
+      i += count
     }
+    return [comments.toStr, code.toStr]
   }
 
   ** Parse the srcDirs array from a build.fan file.
@@ -155,7 +198,7 @@ class CompilerDiagnostics
   {
     try
     {
-      content := buildFan.readAllStr
+      masks := maskBuildComments(buildFan.readAllStr)
       depends := Depend[,]
 
       // Load macro values from the nearest etc/build/config.props
@@ -164,50 +207,29 @@ class CompilerDiagnostics
       if (propsFile != null)
         buildProps = parsePropsFile(propsFile)
 
-      inDepends := false
-      bracketDepth := 0
-
-      content.splitLines.each |line|
+      // Match a field assignment, never metadata keys, literals, comments,
+      // longer identifiers, equality checks, or another object's member.
+      // Explicit this.depends is the same BuildPod field as bare depends.
+      matcher := Regex("(?<![A-Za-z0-9_.\$])(?:this\\s*\\.\\s*)?(depends)\\s*=(?!=)").matcher(masks[0])
+      while (matcher.find)
       {
-        trimmed := line.trim
-
-        if (!inDepends && trimmed.contains("depends"))
-          inDepends = true
-
-        if (inDepends)
+        if (masks[1][matcher.start(1)] != 'd') continue
+        prev := matcher.start - 1
+        while (prev >= 0 && masks[0][prev].isSpace) prev--
+        if (prev >= 0 && masks[0][prev] == '.') continue
+        entries := staticDependEntries(masks[0], matcher.end)
+        if (entries == null) continue
+        entries.each |depStr|
         {
-          bracketDepth += trimmed.split('[').size - 1
-          bracketDepth -= trimmed.split(']').size - 1
-
-          if (trimmed.contains("\"") && !trimmed.startsWith("//"))
+          resolvedDep := resolveMacros(depStr.trim, buildProps)
+          if (!resolvedDep.isEmpty)
           {
-            // Split on quotes; odd-indexed parts are the string contents
-            parts := trimmed.split('"')
-            idx := 1
-            while (idx < parts.size)
+            try { depends.add(Depend(resolvedDep)) }
+            catch (Err e)
             {
-              depStr := parts[idx].trim
-              if (!depStr.isEmpty)
-              {
-                resolvedDep := resolveMacros(depStr, buildProps)
-                if (!resolvedDep.isEmpty)
-                {
-                  try
-                  {
-                    depends.add(Depend(resolvedDep))
-                  }
-                  catch (Err e)
-                  {
-                    Env.cur.err.printLine("[CompilerDiagnostics] Invalid depend '$resolvedDep': $e")
-                  }
-                }
-              }
-              idx += 2
+              Env.cur.err.printLine("[CompilerDiagnostics] Invalid depend '$resolvedDep': $e")
             }
           }
-
-          if (bracketDepth <= 0 && trimmed.contains("]"))
-            inDepends = false
         }
       }
 
@@ -221,6 +243,64 @@ class CompilerDiagnostics
       Env.cur.err.printLine("[CompilerDiagnostics] Error parsing depends: $e")
       return [Depend("sys 1.0+")]
     }
+  }
+
+  ** Recognize only an entire static list RHS. Do not salvage quoted fragments
+  ** from calls, maps, concatenations, interpolations, or mixed dynamic lists.
+  ** Comments are already masked; delimiters inside strings remain literal.
+  private Str[]? staticDependEntries(Str text, Int offset)
+  {
+    i := offset
+    while (i < text.size && text[i].isSpace) i++
+    // Only the built-in string-list annotation is recognized, not arbitrary
+    // type names, constructors, casts, or evaluated expressions.
+    if (i < text.size && text[i] != '[')
+    {
+      typed := Regex("^(?:sys\\s*::\\s*)?Str\\s*\\[").matcher(text[i..-1])
+      if (!typed.find) return null
+      i += typed.end - 1
+    }
+    if (i >= text.size || text[i] != '[') return null
+    i++
+    entries := Str[,]
+    while (true)
+    {
+      while (i < text.size && text[i].isSpace) i++
+      if (i >= text.size) return null
+      if (text[i] == ']') break
+      if (text[i] != '"') return null
+      start := ++i
+      while (i < text.size && text[i] != '"')
+      {
+        // Dependency literals need no Fantom escaping or interpolation.
+        // BuildPod @{key} macros are resolved separately, as before.
+        if (text[i] == '\\' || text[i] == '$' || text[i] == '\n' || text[i] == '\r') return null
+        i++
+      }
+      if (i >= text.size) return null
+      entries.add(text[start..<i])
+      i++
+      while (i < text.size && text[i].isSpace) i++
+      if (i >= text.size) return null
+      if (text[i] == ']') break
+      if (text[i] != ',') return null
+      i++
+    }
+
+    // A closing bracket alone does not prove a static RHS: ["sys 1.0"]
+    // + moreDeps and ["sys 1.0"].add(...) are dynamic, even across lines.
+    i++
+    newline := false
+    while (i < text.size && text[i].isSpace)
+    {
+      if (text[i] == '\n' || text[i] == '\r') newline = true
+      i++
+    }
+    if (i < text.size && text[i] != ';' && text[i] != '}')
+    {
+      if (!newline || ".+-*/%&|^?:[<>=,({".containsChar(text[i])) return null
+    }
+    return entries
   }
 
   ** Find etc/build/config.props by walking up the directory tree from build.fan.
@@ -300,18 +380,8 @@ class CompilerDiagnostics
   {
     try
     {
-      if (!uri.startsWith("file://"))
-        return null
-
-      filePath := uri["file://".size..-1]
-      filePath = filePath.replace("%3A", ":").replace("%3a", ":")
-
-      // Windows: strip leading slash before drive letter (e.g. /C:/ -> C:/)
-      if (filePath.startsWith("/") && filePath.size > 2 && filePath[2] == ':')
-        filePath = filePath[1..-1]
-
-      file := File.os(filePath)
-      if (!file.exists)
+      file := WorkspaceManager.uriToFile(uri)
+      if (file == null || !file.exists)
         return null
 
       dir := file.parent
@@ -333,32 +403,39 @@ class CompilerDiagnostics
     }
   }
 
-  private CompilerErr[] filterErrorsForFile(CompilerErr[] errs, Str uri)
+  internal CompilerErr[] filterErrorsForFile(CompilerErr[] errs, Str uri)
   {
     try
     {
-      if (!uri.startsWith("file://"))
-        return errs
+      file := WorkspaceManager.uriToFile(uri)
+      if (file == null)
+        return CompilerErr[,]
 
-      filePath := uri["file://".size..-1]
-      if (filePath.startsWith("/") && filePath.size > 2 && filePath[2] == ':')
-        filePath = filePath[1..-1]
-
-      targetName := File.os(filePath).name
+      targetPath := file.normalize.osPath.replace("\\", "/")
+      windows := Env.cur.os == "win32"
+      if (windows) targetPath = targetPath.lower
 
       return errs.findAll |err|
       {
         if (err.file == null) return false
-        return err.file.endsWith(targetName)
+        try
+        {
+          errorFile := err.file.lower.startsWith("file:") ? WorkspaceManager.uriToFile(err.file) : File.os(err.file)
+          if (errorFile == null) return false
+          errorPath := errorFile.normalize.osPath.replace("\\", "/")
+          if (windows) errorPath = errorPath.lower
+          return errorPath == targetPath
+        }
+        catch (Err e) return false
       }
     }
     catch (Err e)
     {
-      return errs
+      return CompilerErr[,]
     }
   }
 
-  private Depend[] extractDependenciesFromSource(Str sourceCode)
+  internal Depend[] extractDependenciesFromSource(Str sourceCode)
   {
     depends := Depend[,]
     depends.add(Depend("sys 1.0+"))

@@ -1,84 +1,35 @@
 class HoverProvider : LspUtils
 {
-  [Str:Obj?]? hover(DocumentState doc, ParseResult parseResult, Position pos)
+  [Str:Obj?]? hover(DocumentState doc, ParseResult parsed, Position pos, FantomLanguageServer server)
   {
-    word := doc.getWordAt(pos)
-    if (word.isEmpty) return null
-
-    podNames := extractUsings(parseResult)
-
-    // 1. Local variable with an inferable type
-    typeName := inferVarType(doc, word, parseResult, podNames)
-    if (typeName != null)
+    res := server.resolver.resolveAt(doc.uri, pos)
+    t := res.targets.first
+    if (t == null) return null
+    sig := server.resolver.signatureOf(t.key) ?: t.signature
+    if (sig == null) return null
+    if (SymbolKey.isLocal(t.key))
     {
-      md := StrBuf()
-      md.add("```fantom\n${typeName} ${word}\n```")
-      typeNode := findLocalNode(parseResult, typeName)
-      if (typeNode != null)
+      // Semantic metadata is just the CType; heuristic metadata has the name.
+      if (sig != t.name && !sig.endsWith(" " + t.name)) sig += " " + t.name
+      local := findEnclosingLocal(parsed, t.name, pos)
+      // A bare name has no type metadata. Never replace a resolver-provided
+      // type (especially the compiler's inferred CType) with RHS heuristics.
+      if (sig == t.name && local != null && local.typeName == null)
       {
-        md.add("\n\n---\n\n```fantom\n${formatLocalSig(typeNode)}\n```")
-        makeNode := typeNode.children.find |c| { c.kind == AstNodeKind.ctorDef && c.name == "make" }
-        if (makeNode != null)
-          md.add("\n```fantom\n${formatLocalSig(makeNode)}\n```")
-      }
-      return ["contents": ["kind": "markdown", "value": md.toStr]]
-    }
-
-    // 2. Local file definition (type, method, or field)
-    localNode := findLocalNode(parseResult, word)
-    if (localNode != null)
-    {
-      md := StrBuf()
-      md.add("```fantom\n${formatLocalSig(localNode)}\n```")
-      if (localNode.doc != null) md.add("\n\n---\n\n").add(localNode.doc)
-      if (localNode.isType)
-      {
-        makeNode := localNode.children.find |c| { c.kind == AstNodeKind.ctorDef && c.name == "make" }
-        if (makeNode != null)
-          md.add("\n\n**Constructor:** `").add(formatLocalSig(makeNode)).add("`")
-      }
-      return ["contents": ["kind": "markdown", "value": md.toStr]]
-    }
-
-    // 3. Pod type (usings first, then all pods)
-    t := findType(podNames, word)
-    if (t == null) t = findTypeInAnyPod(word)
-    if (t != null)
-    {
-      md := StrBuf()
-      md.add("```fantom\n${formatTypeSig(t)}\n```")
-      if (t.doc != null) md.add("\n\n---\n\n").add(t.doc)
-      makeMethod := t.method("make", false)
-      if (makeMethod != null)
-        md.add("\n\n**Constructor:** `").add(formatMethodSig(makeMethod)).add("`")
-      return ["contents": ["kind": "markdown", "value": md.toStr]]
-    }
-
-    // 4. Pod slot
-    slot := findSlot(podNames, word)
-    if (slot != null)
-    {
-      sig := formatSlotSig(slot)
-      md := "```fantom\n${sig}\n```\n\n*${slot.parent.qname}*"
-      if (slot.doc != null) md = md + "\n\n---\n\n" + slot.doc
-      return ["contents": ["kind": "markdown", "value": md]]
-    }
-
-    return null
-  }
-
-  private Slot? findSlot(Str[] podNames, Str name)
-  {
-    return podNames.eachWhile |pn|
-    {
-      pod := Pod.find(pn, false)
-      if (pod == null) return null
-      return pod.types.eachWhile |t|
-      {
-        s := t.slot(name, false)
-        if (s != null && s.parent == t) return s
-        return null
+        line := doc.getLine(local.selectionRange.start.line) ?: ""
+        idx := line.index(":=")
+        inferred := idx == null ? null : extractTypeFromRhs(line[idx+2..-1].trim, parsed, extractUsings(parsed))
+        if (inferred != null) sig = "${inferred} ${t.name}"
       }
     }
+    md := StrBuf().add("```fantom\n").add(sig).add("\n```")
+    parent := SymbolKey.typeKeyOf(t.key)
+    if (!SymbolKey.isLocal(t.key) && parent != null && parent != t.key)
+      md.add("\n\n*").add(parent).add("*")
+    if (res.certainty == Certainty.ambiguous)
+      md.add("\n\n(+").add((res.targets.size-1).max(0)).add(" other candidates)")
+    text := server.resolver.docOf(t.key) ?: t.doc
+    if (text != null) md.add("\n\n---\n\n").add(text)
+    return ["contents": ["kind": "markdown", "value": md.toStr]]
   }
 }

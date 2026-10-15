@@ -1,24 +1,17 @@
 class ReferencesProvider
 {
-  Obj? references(DocumentState doc, Position pos, SymbolTable symbolTable, ReferenceIndex referenceIndex)
+  Obj? references(DocumentState doc, Position pos, FantomLanguageServer server, Bool includeDecl := false)
   {
-    word := doc.getWordAt(pos)
-    if (word.isEmpty) return null
-
+    res := server.resolver.resolveAt(doc.uri, pos)
+    if ((res.certainty != Certainty.proven && res.certainty != Certainty.unique) || res.targets.size != 1)
+      return null
+    // Incomplete results are useful for navigation; only rename requires coverage.
+    refs := server.resolver.references(res.targets.first.key, includeDecl, false)
     locations := [Str:Obj?][,]
-
-    entries := symbolTable.findAllByName(word)
-    entries.each |e|
+    refs.occurrences.each |o|
     {
-      locations.add(Location(e.uri, e.node.selectionRange).toMap)
+      locations.add(Location(server.clientUri(o.fileKey), o.range).toMap)
     }
-
-    refs := referenceIndex.findReferences(word)
-    refs.each |r|
-    {
-      locations.add(Location(r.uri, r.range).toMap)
-    }
-
     return locations.isEmpty ? null : locations
   }
 }

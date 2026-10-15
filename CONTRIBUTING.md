@@ -31,7 +31,7 @@ fantomLsp/
 │   │   ├── server/                      # FantomLanguageServer, TextDocumentManager, WorkspaceManager
 │   │   ├── parser/                      # Error-recovering parser, partial AST
 │   │   ├── analysis/                    # SymbolTable, TypeResolver, ReferenceIndex
-│   │   └── features/                    # One provider class per LSP feature
+│   │   └── features/                    # One provider per LSP feature (hover, definition, completion, rename, diagnostics, formatting, semantic tokens, call hierarchy, highlights, folding, inlay hints, …)
 │   └── test/                            # Unit tests
 │
 └── scripts/                             # build.bat / build.sh
@@ -60,14 +60,11 @@ npm run compile
 
 Open the repo root in VS Code and press `F5` to launch an Extension Development Host.
 
-### Packaging
+### Packaging / publish
 
-```bash
-cd client
-npx vsce package
-```
+See [PUBLISH.md](PUBLISH.md). On Windows, prefer `scripts\build.bat` so the pod is copied into the VSIX.
 
-This produces a `.vsix` file you can install with `code --install-extension fantom-lsp-x.y.z.vsix`.
+Pre-release checklist: [RELEASE.md](RELEASE.md).
 
 ## Running Tests
 
@@ -80,4 +77,4 @@ Tests run via Fantom's built-in `fant` runner. The suite covers all providers, t
 
 ## License
 
-Academic Free License v3.0 -- see [AFL-3.0](https://opensource.org/licenses/AFL-3.0).
+Free to use. Source code is proprietary. See [LICENSE](LICENSE) for details.

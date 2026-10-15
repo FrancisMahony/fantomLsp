@@ -6,7 +6,7 @@ class Build : BuildPod
   {
     podName = "fantomLsp"
     summary = "Fantom Language Server Protocol implementation"
-    version = Version("0.1.1")
+    version = Version("0.3.0")
     depends = [
       "sys 1.0",
       "util 1.0",

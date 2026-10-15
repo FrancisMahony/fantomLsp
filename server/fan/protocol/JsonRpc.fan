@@ -1,14 +1,19 @@
 using util
+using concurrent
 
 class JsonRpc
 {
   private InStream inStream
-  private OutStream outStream
+  private OutStream? outStream
+  private StdioWriteActor? writeActor
 
-  new make(InStream inStream, OutStream outStream)
+  new make(InStream inStream, Obj out)
   {
     this.inStream = inStream
-    this.outStream = outStream
+    if (out is StdioWriteActor)
+      this.writeActor = out
+    else
+      this.outStream = out
   }
 
   [Str:Obj?]? readMessage()
@@ -35,24 +40,41 @@ class JsonRpc
     buf.flip
 
     json := buf.readAllStr
-    Env.cur.err.printLine("[fantomLsp] << $json")
 
     return JsonInStream(json.in).readJson as [Str:Obj?]
   }
 
   Void writeMessage([Str:Obj?] msg)
   {
+    if (writeActor != null)
+    {
+      writeActor.send(msg).get
+      return
+    }
+    writeFrame(outStream, msg)
+  }
+
+  ** Pure: encode a message as its JSON body (immutable, safe to send to actors).
+  static Str encode([Str:Obj?] msg)
+  {
     buf := Buf()
     JsonOutStream(buf.out).writeJson(msg)
-    body := buf.flip.readAllStr
+    return buf.flip.readAllStr
+  }
 
-    Env.cur.err.printLine("[fantomLsp] >> $body")
+  static Void writeFrame(OutStream out, [Str:Obj?] msg)
+  {
+    writeBody(out, encode(msg))
+  }
 
+  ** Write one Content-Length framed message whose JSON body is already encoded.
+  static Void writeBody(OutStream out, Str body)
+  {
     bodyBytes := Buf().print(body)
     header := "Content-Length: ${bodyBytes.size}\r\n\r\n"
-    outStream.print(header)
-    outStream.writeBuf(bodyBytes.flip)
-    outStream.flush
+    out.print(header)
+    out.writeBuf(bodyBytes.flip)
+    out.flush
   }
 
   private [Str:Str]? readHeaders()
@@ -99,5 +121,31 @@ class JsonRpc
       }
     }
     return buf.toStr
+  }
+}
+
+const class StdioWriteActor : Actor
+{
+  private const Unsafe outRef
+
+  new make(ActorPool pool, OutStream out) : super(pool)
+  {
+    this.outRef = Unsafe(out)
+  }
+
+  ** Accepts an encoded JSON body (`Str`, preferred: immutable) or a message map.
+  ** Any other message (e.g. null) is a no-op, so `send(null).get` acts as a flush.
+  override Obj? receive(Obj? msg)
+  {
+    try
+    {
+      if (msg is Str) JsonRpc.writeBody((OutStream)outRef.val, msg)
+      else if (msg is Map) JsonRpc.writeFrame((OutStream)outRef.val, msg)
+    }
+    catch (Err e)
+    {
+      Env.cur.err.printLine("[fantomLsp] Write failed: $e.msg")
+    }
+    return null
   }
 }

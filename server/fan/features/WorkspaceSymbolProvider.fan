@@ -1,6 +1,6 @@
 class WorkspaceSymbolProvider
 {
-  Obj? search(Str query, SymbolTable symbolTable)
+  Obj? search(Str query, SymbolTable symbolTable, |Str->Str| clientUri := |Str key->Str| { UriKey.toClientUri(key) })
   {
     if (query.isEmpty) return [,]
 
@@ -11,7 +11,7 @@ class WorkspaceSymbolProvider
       return [
         "name": e.node.name,
         "kind": kind,
-        "location": Location(e.uri, e.node.selectionRange).toMap,
+        "location": Location(clientUri(e.uri), e.node.selectionRange).toMap,
         "containerName": e.node.parent?.name,
       ]
     }

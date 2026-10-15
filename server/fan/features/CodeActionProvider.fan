@@ -1,6 +1,7 @@
 class CodeActionProvider
 {
-  Obj? codeActions(DocumentState doc, ParseResult parseResult, LspRange range, [Str:Obj?] context)
+  Obj? codeActions(DocumentState doc, ParseResult parseResult, LspRange range, [Str:Obj?] context,
+    |Str->Str| clientUri := |Str key->Str| { UriKey.toClientUri(key) })
   {
     actions := [Str:Obj?][,]
 
@@ -29,7 +30,7 @@ class CodeActionProvider
               "kind": "quickfix",
               "edit": [
                 "changes": [
-                  doc.uri: [
+                  clientUri(doc.uri): [
                     ["range": insertRange.toMap, "newText": "using ${foundPod.name}\n"],
                   ],
                 ],
@@ -49,8 +50,35 @@ class CodeActionProvider
         "kind": "quickfix",
         "edit": [
           "changes": [
-            doc.uri: [
+            clientUri(doc.uri): [
               ["range": removeRange.toMap, "newText": ""],
+            ],
+          ],
+        ],
+      ])
+    }
+
+    usingNodes := parseResult.nodes.findAll |node| { node.kind == AstNodeKind.usingDef }
+    if (!usingNodes.isEmpty)
+    {
+      unusedUsings := findUnusedUsings(doc, parseResult)
+      remainingUsings := usingNodes.findAll |node|
+      {
+        !unusedUsings.any |unused| { unused === node }
+      }
+      remainingUsings.sort |a, b| { a.name <=> b.name }
+
+      firstLine := usingNodes.first.range.start.line
+      lastLine := usingNodes.last.range.end.line
+      replacement := remainingUsings.map |node| { "using ${node.name}\n" }.join
+      usingRange := LspRange(Position(firstLine, 0), Position(lastLine + 1, 0))
+      actions.add([
+        "title": "Organize usings",
+        "kind": "source.organizeImports",
+        "edit": [
+          "changes": [
+            clientUri(doc.uri): [
+              ["range": usingRange.toMap, "newText": replacement],
             ],
           ],
         ],
@@ -63,13 +91,16 @@ class CodeActionProvider
       trimmed := line.trim
       if (trimmed.startsWith("//"))
       {
+        lineNum := range.start.line
+        lineLen := line.size
+        fullLine := LspRange(Position(lineNum, 0), Position(lineNum, lineLen))
         actions.add([
           "title": "Uncomment line",
           "kind": "refactor",
           "edit": [
             "changes": [
-              doc.uri: [
-                ["range": range.toMap, "newText": trimmed[2..-1].trim],
+              clientUri(doc.uri): [
+                ["range": fullLine.toMap, "newText": trimmed[2..-1].trim],
               ],
             ],
           ],
@@ -118,20 +149,51 @@ class CodeActionProvider
       if (colonIdx != null)
       {
         typeName := name[colonIdx+2..-1]
-        return !lines.any |line, idx| { idx != skipLine && line.contains(typeName) }
+        return !lines.any |line, idx|
+        {
+          if (idx == skipLine) return false
+          t := line.trim
+          if (t.startsWith("//")) return false
+          return containsIdent(line, typeName)
+        }
       }
       else
       {
         if (name == "sys") return false
         pod := Pod.find(name, false)
         if (pod == null) return false
-        // Build one string from all non-using lines, then check each type name with a
-        // single contains() call — O(lines + types) instead of O(types × lines).
-        buf := StrBuf()
-        lines.each |line, idx| { if (idx != skipLine) buf.add(line).add("\n") }
-        docText := buf.toStr
-        return pod.types.all |t| { !docText.contains(t.name) }
+        return pod.types.all |t|
+        {
+          !lines.any |line, idx|
+          {
+            if (idx == skipLine) return false
+            trimmed := line.trim
+            if (trimmed.startsWith("//")) return false
+            return containsIdent(line, t.name)
+          }
+        }
       }
     }
+  }
+
+  private Bool containsIdent(Str line, Str ident)
+  {
+    idx := 0
+    while (true)
+    {
+      found := line.index(ident, idx)
+      if (found == null) return false
+      beforeOk := found == 0 || !isIdentChar(line[found - 1])
+      after := found + ident.size
+      afterOk := after >= line.size || !isIdentChar(line[after])
+      if (beforeOk && afterOk) return true
+      idx = found + 1
+    }
+    return false
+  }
+
+  private Bool isIdentChar(Int ch)
+  {
+    ch.isAlphaNum || ch == '_'
   }
 }

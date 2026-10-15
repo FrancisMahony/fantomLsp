@@ -121,4 +121,19 @@ class SerializationTest : Test
     verifyFalse(caps.containsKey("completionProvider"))
     verifyFalse(caps.containsKey("signatureHelpProvider"))
   }
+
+  Void testServerCapabilitiesAlwaysHasSelectionRange()
+  {
+    caps := Serialization.serverCapabilities(false, false, false, false, false, false, false, false, false, false, false, false)
+    verifyEq(caps["selectionRangeProvider"], true)
+  }
+
+  Void testServerCapabilitiesAlwaysHasOnTypeFormattingAndDocumentLink()
+  {
+    caps := Serialization.serverCapabilities(false, false, false, false, false, false, false, false, false, false, false, false)
+    verifyEq(caps["documentLinkProvider"], true)
+    ot := caps["documentOnTypeFormattingProvider"] as [Str:Obj?]
+    verifyNotNull(ot)
+    verifyEq(ot["firstTriggerCharacter"], "}")
+  }
 }

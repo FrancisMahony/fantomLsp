@@ -1,15 +1,11 @@
 {
   "name": "fantom-lsp",
-  "displayName": "Fantom Language Support",
+  "displayName": "Fantom LSP",
   "description": "Language server protocol support for the Fantom programming language",
-  "version": "0.1.1",
-  "publisher": "fantom-lsp",
-  "license": "AFL-3.0",
+  "version": "0.3.0",
+  "publisher": "NV5-FrancisMahony",
+  "license": "SEE LICENSE IN LICENSE",
   "icon": "icon.png",
-  "galleryBanner": {
-    "color": "#1e1e2e",
-    "theme": "dark"
-  },
   "keywords": [
     "fantom",
     "fan",
@@ -40,12 +36,26 @@
         ],
         "extensions": [
           ".fan",
-          ".fwt",
-          ".pod"
+          ".fwt"
+        ],
+        "filenames": [
+          "build.fan"
         ],
         "configuration": "./language-configuration.json"
       }
     ],
+    "commands": [
+      {
+        "command": "fantom.restartServer",
+        "title": "Fantom: Restart Language Server"
+      }
+    ],
+    "configurationDefaults": {
+      "[fantom]": {
+        "editor.semanticHighlighting.enabled": true,
+        "editor.formatOnSave": false
+      }
+    },
     "grammars": [
       {
         "language": "fantom",
@@ -62,6 +72,12 @@
           "default": "",
           "description": "Path to Fantom installation directory (FAN_HOME). If empty, the extension will check the FAN_HOME environment variable and PATH."
         },
+        "fantom.envPath": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Absolute Fantom environment root directories containing lib/fan pods (relative paths are ignored). Used only for file-backed workspace lookup, together with current workspace auto-detection, never added to JVM FAN_ENV_PATH. Changes apply to server lookups immediately."
+        },
         "fantom.trace.server": {
           "type": "string",
           "enum": [
@@ -76,6 +92,42 @@
           "type": "string",
           "default": "-Xmx1024m",
           "description": "JVM options passed to the Fantom language server (e.g. -Xmx2048m for more memory)."
+        },
+        "fantom.maxFiles": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum number of .fan files to index. 0 means no limit (use fantom.javaOpts heap for large trees)."
+        },
+        "fantom.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show reference-count code lenses on Fantom methods, constructors, and fields. Click a count to show references."
+        },
+        "fantom.semanticIndex.backgroundCompile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Compile workspace pods in the background for precise symbol resolution and reference counts. Incomplete counts are marked with +."
+        },
+        "fantom.excludeDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".git",
+            "node_modules",
+            ".hg",
+            "build",
+            "out",
+            "dist",
+            ".svn",
+            "__pycache__",
+            "lib",
+            "temp",
+            "tmp"
+          ],
+          "description": "Directory names to skip when indexing workspace sources. Default includes lib (installed pods)."
         },
         "fantom.formatting.bracketStyle": {
           "type": "string",

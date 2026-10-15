@@ -200,4 +200,41 @@ class SemanticTokensProviderTest : Test
 
     verifyNotNull(data)
   }
+
+  Void testBodyRefTokens()
+  {
+    src := "class Foo\n{\n  Void bar() { Str x := \"a\" }\n}"
+    doc := makeDoc(src)
+    r := parse(src)
+    symbolTable.update("file:///test.fan", r)
+    result := provider.provideTokens(doc, symbolTable, typeResolver, r)
+    resultMap := result as [Str:Obj?]
+    data := resultMap["data"] as Int[]
+    verifyNotNull(data)
+    verifyEq(data.size % 5, 0)
+    verify(data.size > 10)
+  }
+
+  Void testProvideTokensRangeFiltersLines()
+  {
+    src := "class First {}\nclass Second {}\nclass Third {}"
+    doc := makeDoc(src)
+    r := parse(src)
+    symbolTable.update("file:///test.fan", r)
+    range := LspRange(Position(1, 0), Position(1, 20))
+    result := provider.provideTokensRange(doc, symbolTable, r, range)
+    resultMap := result as [Str:Obj?]
+    data := resultMap["data"] as Int[]
+    verifyNotNull(data)
+    verifyEq(data.size % 5, 0)
+    verify(data.size > 0)
+    absLine := 0
+    i := 0
+    while (i + 4 < data.size)
+    {
+      absLine += data[i]
+      verifyEq(absLine, 1)
+      i += 5
+    }
+  }
 }

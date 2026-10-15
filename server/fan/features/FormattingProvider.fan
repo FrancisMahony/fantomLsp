@@ -1,5 +1,26 @@
 class FormattingProvider
 {
+  TextEdit[] onTypeCloseBrace(DocumentState doc, Int lineNum)
+  {
+    formatLine(doc, lineNum, [Str:Obj?][:])
+  }
+
+  TextEdit[] formatLine(DocumentState doc, Int lineNum, [Str:Obj?] opts)
+  {
+    lines := doc.text.splitLines
+    if (lineNum < 0 || lineNum >= lines.size) return TextEdit[,]
+    tabSize := ((Num?)opts["tabSize"])?.toInt ?: 2
+    indent := (opts["insertSpaces"] as Bool ?: true) ? Str.spaces(tabSize) : "\t"
+    stack := Int[,]
+    lines[0..<lineNum].each |line| { applyDelimiters(line.trim, stack) }
+    trimmed := lines[lineNum].trim
+    depth := indentDepth(trimmed, stack)
+    buf := StrBuf(); depth.times { buf.add(indent) }; buf.add(trimmed)
+    text := buf.toStr
+    if (text == lines[lineNum]) return TextEdit[,]
+    return [TextEdit(LspRange(Position(lineNum, 0), Position(lineNum, lines[lineNum].size)), text)]
+  }
+
   TextEdit[] format(DocumentState doc, [Str:Obj?] opts)
   {
     tabSize := ((Num?)opts["tabSize"])?.toInt ?: 2
@@ -10,7 +31,7 @@ class FormattingProvider
     lines := doc.text.splitLines
     processedLines := normalizeBrackets(lines, bracketStyle)
     result := Str[,]
-    depth := 0
+    stack := Int[,]
 
     inTripleQuote := false
     tripleQuoteCol := 0
@@ -37,20 +58,13 @@ class FormattingProvider
         return
       }
 
-      if (trimmed.startsWith("}") || trimmed.startsWith("]"))
-        depth = (depth - 1).max(0)
-
+      depth := indentDepth(trimmed, stack)
       buf := StrBuf()
       depth.times { buf.add(indent) }
       buf.add(trimmed)
       formatted := buf.toStr
       result.add(formatted)
-
-      braces := countBracesOutsideStrings(trimmed)
-      closesAdj := braces["closes"]
-      if (trimmed.startsWith("}") || trimmed.startsWith("]"))
-        closesAdj = (closesAdj - 1).max(0)
-      depth = (depth + braces["opens"] - closesAdj).max(0)
+      applyDelimiters(trimmed, stack)
 
       // Check if this line opens a triple-quoted string
       openIdx := findTripleQuote(formatted, 0)
@@ -69,6 +83,27 @@ class FormattingProvider
     formatted := result.join("\n")
     fullRange := LspRange(Position(0, 0), Position(lines.size, 0))
     return [TextEdit(fullRange, formatted)]
+  }
+
+  ** Format the full document, then return a single TextEdit covering only
+  ** the requested line range so range format does not rewrite the file.
+  TextEdit[] formatRange(DocumentState doc, LspRange range, [Str:Obj?] opts)
+  {
+    full := format(doc, opts)
+    if (full.isEmpty) return [,]
+    formattedLines := full[0].newText.splitLines
+    origLines := doc.text.splitLines
+    start := range.start.line.max(0)
+    end := range.end.line.max(start)
+    if (start >= origLines.size) return [,]
+    end = end.min(origLines.size - 1)
+    sliceEnd := end.min(formattedLines.size - 1)
+    if (start > sliceEnd) return [,]
+    slice := formattedLines[start..sliceEnd].join("\n")
+    editRange := LspRange(
+      Position(start, 0),
+      Position(end, origLines[end].size))
+    return [TextEdit(editRange, slice)]
   }
 
   private Str[] normalizeBrackets(Str[] lines, Str style)
@@ -99,7 +134,7 @@ class FormattingProvider
         if (trimmed.endsWith("{") && trimmed.size > 1 && !trimmed.endsWith("{{"))
         {
           beforeBrace := trimmed[0..-2].trim
-          if (!beforeBrace.isEmpty && beforeBrace[-1] != ',')
+          if (!beforeBrace.isEmpty && beforeBrace[-1] != ',' && !isItBlock(beforeBrace))
           {
             result.add(beforeBrace)
             result.add("{")
@@ -131,6 +166,16 @@ class FormattingProvider
       i++
     }
     return result
+  }
+
+  private Bool isItBlock(Str beforeBrace)
+  {
+    if (beforeBrace.isEmpty) return false
+    if (beforeBrace[-1] == '|') return true
+    pipe := beforeBrace.indexr("|")
+    if (pipe == null) return false
+    afterParen := beforeBrace.indexr(")")
+    return afterParen != null && afterParen < pipe
   }
 
   private Bool isInString(Str line)
@@ -170,10 +215,28 @@ class FormattingProvider
     return inStr || inTriple
   }
 
-  private [Str:Int] countBracesOutsideStrings(Str line)
+  private Int indentDepth(Str trimmed, Int[] stack)
   {
-    opens := 0
-    closes := 0
+    copy := stack.dup
+    i := 0
+    while (i < trimmed.size)
+    {
+      ch := trimmed[i]
+      opener := matchingOpener(ch)
+      if (opener == null) break
+      if (!copy.isEmpty && copy.last == opener) copy.pop
+      else break
+      i++
+    }
+    n := 0
+    copy.each |ch| { if (ch == '{') n++ }
+    if (copy.any |ch| { ch == '(' }) n++
+    if (copy.any |ch| { ch == '[' }) n++
+    return n
+  }
+
+  private Void applyDelimiters(Str line, Int[] stack)
+  {
     inStr := false
     inTriple := false
     escaped := false
@@ -194,6 +257,7 @@ class FormattingProvider
       }
       if (escaped) { escaped = false; i++; continue }
       if (ch == '\\') { escaped = true; i++; continue }
+      if (!inStr && ch == '/' && i + 1 < line.size && line[i+1] == '/') break
       if (ch == '"')
       {
         if (i + 2 < line.size && line[i+1] == '"' && line[i+2] == '"')
@@ -208,12 +272,23 @@ class FormattingProvider
       }
       if (!inStr)
       {
-        if (ch == '{' || ch == '[') opens++
-        else if (ch == '}' || ch == ']') closes++
+        if (ch == '{' || ch == '[' || ch == '(') stack.push(ch)
+        else
+        {
+          opener := matchingOpener(ch)
+          if (opener != null && !stack.isEmpty && stack.last == opener) stack.pop
+        }
       }
       i++
     }
-    return ["opens": opens, "closes": closes]
+  }
+
+  private static Int? matchingOpener(Int closer)
+  {
+    if (closer == '}') return '{'
+    if (closer == ']') return '['
+    if (closer == ')') return '('
+    return null
   }
 
   ** Find the index of the first triple-quote starting at or after 'from'.
